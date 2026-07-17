@@ -33,6 +33,13 @@ func readCredential() map[string]string {
 	}
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
 
+	emailPath := filepath.Join(home, ".local", "share", "vd", "gpg_email.txt")
+	emailBytes, err := os.ReadFile(emailPath)
+	if err != nil || len(strings.TrimSpace(string(emailBytes))) == 0 {
+		fmt.Println("No GPG key registered. Run `vd register` first.")
+		return nil
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil && !os.IsNotExist(err) {
 		fmt.Println("Error reading passwords directory:", err)
