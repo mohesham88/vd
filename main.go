@@ -55,6 +55,13 @@ func readCredential() map[string]string {
 
 	fmt.Print("Enter name: ")
 	fmt.Scanln(&name)
+
+	filename := filepath.Join(dir, name)
+	if _, err := os.Stat(filename); err == nil {
+		fmt.Println("Error: password for", name, "already exists")
+		return nil
+	}
+
 	fmt.Print("Enter password: ")
 	pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
@@ -78,33 +85,31 @@ func createJSONObj(data map[string]string) ([]byte, error) {
 	return jsonObj, nil
 }
 
-func savePassword(credentials map[string]string) error {
+func savePassword(credentials map[string]string) (bool, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return false, err
 	}
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+		return false, err
 	}
 
 	filename := filepath.Join(dir, credentials["Name"])
-	if _, err := os.Stat(filename); err == nil {
-		fmt.Println("Error: password for", credentials["Name"], "already exists")
-		return nil
-	}
 
 	data, err := createJSONObj(credentials)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	encrypted, err := encrypt(data)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return os.WriteFile(filename, encrypted, 0o600)
+	os.WriteFile(filename, encrypted, 0o600)
+
+	return true, nil
 }
 
 func getPassword(credentialsName string) {
@@ -189,6 +194,23 @@ func deletePassword(credentialsName string) {
 		return
 	}
 	fmt.Println("Password for", credentialsName, "deleted")
+}
+
+func listCurrentPasswords() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("Error getting home directory:", err)
+		return
+	}
+	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		fmt.Println("Error reading passwords directory:", err)
+		return
+	}
+	for _, entry := range entries {
+		fmt.Println(entry.Name())
+	}
 }
 
 func GenerateGPGKey(name, email, passphrase string) error {
@@ -346,11 +368,15 @@ func main() {
 		if obj == nil {
 			return
 		}
-		if err := savePassword(obj); err != nil {
-			fmt.Println("Error saving password:", err)
+
+		success, err := savePassword(obj)
+		if err != nil {
 			return
 		}
-		fmt.Println("Password for", obj["Name"], "added successfully")
+
+		if success {
+			fmt.Println("Password for", obj["Name"], "added successfully")
+		}
 	case "get":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: vd get password_name")
@@ -365,6 +391,8 @@ func main() {
 		deletePassword(os.Args[2])
 	case "register":
 		register()
+	case "ls":
+		listCurrentPasswords()
 	default:
 		fmt.Println("Unknown command:", os.Args[1])
 	}
