@@ -222,7 +222,7 @@ func deletePassword(credentialsName string) {
 		return
 	}
 
-	updatePasswordsLookup(credentialsName)
+	updatePasswordsLookup(credentialsName, true)
 
 	fmt.Println("Password for", credentialsName, "deleted")
 }
