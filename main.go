@@ -118,11 +118,17 @@ func savePassword(credentials map[string]string) (bool, error) {
 }
 
 func getPassword(credentialsName string) {
+	if !slices.Contains(readPasswordsLookup(), credentialsName) {
+		fmt.Println("Error: password for", credentialsName, "doesn't exist")
+		return
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Error getting home directory:", err)
 		return
 	}
+
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
 	filename := filepath.Join(dir, credentialsName)
 
@@ -214,20 +220,38 @@ func deletePassword(credentialsName string) {
 }
 
 func listCurrentPasswords() {
+	for _, name := range readPasswordsLookup() {
+		fmt.Println(name)
+	}
+}
+
+func readPasswordsLookup() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Error getting home directory:", err)
-		return
+		return nil
 	}
-	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
-	entries, err := os.ReadDir(dir)
+	lookupPath := filepath.Join(home, ".local", "share", "vd", "passwords_lookup")
+
+	data, err := os.ReadFile(lookupPath)
 	if err != nil {
-		fmt.Println("Error reading passwords directory:", err)
-		return
+		fmt.Println("Error reading passwords_lookup:", err)
+		return nil
 	}
-	for _, entry := range entries {
-		fmt.Println(entry.Name())
+
+	decrypted, err := decrypt(data)
+	if err != nil {
+		fmt.Println("Error decrypting passwords_lookup:", err)
+		return nil
 	}
+
+	var lookup map[string][]string
+	if err := json.Unmarshal(decrypted, &lookup); err != nil {
+		fmt.Println("Error parsing passwords_lookup:", err)
+		return nil
+	}
+
+	return lookup["current_passwords"]
 }
 
 func GenerateGPGKey(name, email, passphrase string) error {
