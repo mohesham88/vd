@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -152,23 +154,32 @@ func getPassword(credentialsName string) {
 		return
 	}
 
+	if err := copyToClipboard(creds.Password); err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("Password for `%s` copied to clipboard\n", creds.Name)
+}
+
+func copyToClipboard(text string) error {
 	var clipCmd string
+
 	switch runtime.GOOS {
 	case "darwin":
 		clipCmd = "pbcopy"
 	case "linux":
 		clipCmd = "xclip"
 	default:
-		fmt.Println("Error: This OS is not supported at the moment")
-		return
+		return fmt.Errorf("this OS is not supported at the moment")
 	}
+
 	cmd := exec.Command(clipCmd)
-	cmd.Stdin = strings.NewReader(creds.Password)
+	cmd.Stdin = strings.NewReader(text)
 	if err := cmd.Run(); err != nil {
-		fmt.Println("Error copying to clipboard:", err)
-		return
+		return fmt.Errorf("error copying to clipboard: %w", err)
 	}
-	fmt.Printf("Password for `%s` copied to clipboard\n", creds.Name)
+
+	return nil
 }
 
 func deletePassword(credentialsName string) {
@@ -413,6 +424,24 @@ func updatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 	}
 }
 
+func generateRandomPassword() (string, error) {
+	charset := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()"
+	length := 20
+
+	finalPassword := make([]byte, length)
+	max := big.NewInt(int64(len(charset)))
+
+	for i := range finalPassword {
+		n, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", err
+		}
+		finalPassword[i] = charset[n.Int64()]
+	}
+
+	return string(finalPassword), nil
+}
+
 func encrypt(plaintext []byte) ([]byte, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -499,6 +528,21 @@ func main() {
 		register()
 	case "ls":
 		listCurrentPasswords()
+	case "gen":
+		newPassword, err := generateRandomPassword()
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return
+		}
+
+		err = copyToClipboard(newPassword)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return
+		}
+
+		fmt.Println("New random password has been copied to clipboard")
+
 	default:
 		fmt.Println("Unknown command:", os.Args[1])
 	}
