@@ -58,16 +58,31 @@ func readCredential() map[string]string {
 		return nil
 	}
 
-	fmt.Print("Enter password: ")
-	pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
+	for {
+		fmt.Print("Enter password: ")
+		pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			fmt.Println()
+			fmt.Println("Error reading password:", err)
+			return nil
+		}
+		password = string(pwBytes)
 		fmt.Println()
-		fmt.Println("Error reading password:", err)
-		return nil
-	}
 
-	password = string(pwBytes)
-	fmt.Println()
+		fmt.Print("Confirm password: ")
+		confirmBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			fmt.Println()
+			fmt.Println("Error reading password:", err)
+			return nil
+		}
+		fmt.Println()
+		if password == string(confirmBytes) {
+			break
+		}
+		fmt.Println("Password did not match, try again")
+		fmt.Println()
+	}
 
 	credentials := map[string]string{"Name": name, "Password": password}
 	return credentials
