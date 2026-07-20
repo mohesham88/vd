@@ -54,7 +54,7 @@ func readCredential() map[string]string {
 
 	filename := filepath.Join(dir, name)
 	if _, err := os.Stat(filename); err == nil {
-		fmt.Println("Error: password for", name, "already exists")
+		fmt.Printf("Error: password for %s already exists\n", name)
 		return nil
 	}
 

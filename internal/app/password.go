@@ -47,7 +47,7 @@ func savePassword(credentials map[string]string) (bool, error) {
 
 func getPassword(credentialsName string) {
 	if !slices.Contains(readPasswordsLookup(), credentialsName) {
-		fmt.Println("Error: password for", credentialsName, "doesn't exist")
+		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
 		return
 	}
 
@@ -61,7 +61,7 @@ func getPassword(credentialsName string) {
 	filename := filepath.Join(dir, credentialsName)
 
 	if _, err := os.Stat(filename); err != nil {
-		fmt.Println("Error: password for", credentialsName, "doesn't exist")
+		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
 		updatePasswordsLookup(credentialsName, true)
 		return
 	}
@@ -98,7 +98,7 @@ func getPassword(credentialsName string) {
 
 func deletePassword(credentialsName string) {
 	if !slices.Contains(readPasswordsLookup(), credentialsName) {
-		fmt.Println("Error: password for", credentialsName, "doesn't exist")
+		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
 		return
 	}
 
@@ -112,7 +112,7 @@ func deletePassword(credentialsName string) {
 	filename := filepath.Join(dir, credentialsName)
 
 	if _, err := os.Stat(filename); err != nil {
-		fmt.Println("Error: password for", credentialsName, "doesn't exist")
+		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
 		updatePasswordsLookup(credentialsName, true)
 		return
 	}
@@ -131,7 +131,7 @@ func deletePassword(credentialsName string) {
 
 	updatePasswordsLookup(credentialsName, true)
 
-	fmt.Println("Password for", credentialsName, "deleted")
+	fmt.Printf("Password for %s deleted\n", credentialsName)
 }
 
 func listCurrentPasswords() {

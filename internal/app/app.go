@@ -31,7 +31,7 @@ func Run() {
 		}
 
 		if success {
-			fmt.Println("Password for", obj["Name"], "added successfully")
+			fmt.Printf("Password for %s added successfully\n", obj["Name"])
 		}
 	case "get":
 		if len(os.Args) < 3 || len(os.Args) > 3 {

@@ -25,7 +25,7 @@ func register() {
 	emailPath := filepath.Join(vdDir, "gpg_email.txt")
 
 	if _, err := os.Stat(emailPath); err == nil {
-		fmt.Println("Error: password for", emailPath, "already exists")
+		fmt.Printf("Error: password for %s already exists\n", emailPath)
 		return
 	}
 

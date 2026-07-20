@@ -138,7 +138,7 @@ func updatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 
 	if toBeDeletedFlag {
 		if !slices.Contains(lookup["current_passwords"], newPasswordName) {
-			fmt.Println("Password", newPasswordName, "not found in lookup")
+			fmt.Printf("Password %s not found in lookup\n", newPasswordName)
 		}
 
 		lookup["current_passwords"] = slices.DeleteFunc(lookup["current_passwords"], func(name string) bool {
@@ -147,7 +147,7 @@ func updatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 
 	} else {
 		if slices.Contains(lookup["current_passwords"], newPasswordName) {
-			fmt.Println("Password", newPasswordName, "already exists")
+			fmt.Printf("Password %s already exists\n", newPasswordName)
 			return
 		}
 
