@@ -134,6 +134,7 @@ func getPassword(credentialsName string) {
 
 	if _, err := os.Stat(filename); err != nil {
 		fmt.Println("Error: password for", credentialsName, "doesn't exist")
+		updatePasswordsLookup(credentialsName, true)
 		return
 	}
 
@@ -189,16 +190,23 @@ func copyToClipboard(text string) error {
 }
 
 func deletePassword(credentialsName string) {
+	if !slices.Contains(readPasswordsLookup(), credentialsName) {
+		fmt.Println("Error: password for", credentialsName, "doesn't exist")
+		return
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Error getting home directory:", err)
 		return
 	}
+
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
-	filename := filepath.Join(dir, credentialsName+".json")
+	filename := filepath.Join(dir, credentialsName)
 
 	if _, err := os.Stat(filename); err != nil {
 		fmt.Println("Error: password for", credentialsName, "doesn't exist")
+		updatePasswordsLookup(credentialsName, true)
 		return
 	}
 
@@ -220,7 +228,22 @@ func deletePassword(credentialsName string) {
 }
 
 func listCurrentPasswords() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("Error getting home directory:", err)
+		return
+	}
+	passwordsDir := filepath.Join(home, ".local", "share", "vd", "passwords")
+
 	for _, name := range readPasswordsLookup() {
+		if _, err := os.Stat(filepath.Join(passwordsDir, name)); err != nil {
+			if os.IsNotExist(err) {
+				updatePasswordsLookup(name, true)
+				continue
+			}
+			fmt.Println("Error checking password file:", err)
+			continue
+		}
 		fmt.Println(name)
 	}
 }
@@ -231,12 +254,47 @@ func readPasswordsLookup() []string {
 		fmt.Println("Error getting home directory:", err)
 		return nil
 	}
-	lookupPath := filepath.Join(home, ".local", "share", "vd", "passwords_lookup")
+
+	vdDir := filepath.Join(home, ".local", "share", "vd")
+	lookupPath := filepath.Join(vdDir, "passwords_lookup")
 
 	data, err := os.ReadFile(lookupPath)
 	if err != nil {
-		fmt.Println("Error reading passwords_lookup:", err)
-		return nil
+		if !os.IsNotExist(err) {
+			fmt.Println("Error reading passwords_lookup:", err)
+			return nil
+		}
+
+		if err := os.MkdirAll(vdDir, 0o700); err != nil {
+			fmt.Println("Error creating vd directory:", err)
+			return nil
+		}
+
+		lookup := map[string][]string{"current_passwords": {}}
+		emptyData, err := json.Marshal(lookup)
+		if err != nil {
+			fmt.Println("Error creating lookup JSON:", err)
+			return nil
+		}
+
+		encrypted, err := encrypt(emptyData)
+		if err != nil {
+			fmt.Println("Error encrypting lookup:", err)
+			return nil
+		}
+
+		if err := os.WriteFile(lookupPath, encrypted, 0o600); err != nil {
+			fmt.Println("Error writing passwords_lookup:", err)
+			return nil
+		}
+
+		var emptyLookup map[string][]string
+		if err := json.Unmarshal(emptyData, &emptyLookup); err != nil {
+			fmt.Println("Error parsing passwords_lookup:", err)
+			return nil
+		}
+		fmt.Println(emptyLookup["current_passwords"])
+		return emptyLookup["current_passwords"]
 	}
 
 	decrypted, err := decrypt(data)
@@ -515,9 +573,12 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: vd <command>")
 		fmt.Println("Commands:")
-		fmt.Println("  add     Add a new password")
-		fmt.Println("  get     Copy a password to clipboard")
-		fmt.Println("  delete  Delete a stored password")
+		fmt.Println("  add      Add a new password")
+		fmt.Println("  get      Copy a password to clipboard")
+		fmt.Println("  delete   Delete a stored password")
+		fmt.Println("  register Register a new GPG key")
+		fmt.Println("  ls       List stored passwords")
+		fmt.Println("  gen      Generate a random password to clipboard")
 		return
 	}
 
@@ -537,7 +598,7 @@ func main() {
 			fmt.Println("Password for", obj["Name"], "added successfully")
 		}
 	case "get":
-		if len(os.Args) < 3 {
+		if len(os.Args) < 3 || len(os.Args) > 3 {
 			fmt.Println("Usage: vd get password_name")
 			return
 		}
