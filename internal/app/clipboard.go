@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -51,8 +50,7 @@ func wlCopy(text string) error {
 		return err
 	}
 
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -62,7 +60,7 @@ func wlCopy(text string) error {
 	closeErr := stdin.Close()
 
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("wl-copy: %v: %s", err, stderr.String())
+		return fmt.Errorf("wl-copy: %w", err)
 	}
 	if writeErr != nil {
 		return fmt.Errorf("wl-copy: %w", writeErr)
