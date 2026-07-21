@@ -12,6 +12,7 @@ func Run() {
 		fmt.Println("  add      Add a new password")
 		fmt.Println("  get      Copy a password to clipboard")
 		fmt.Println("  delete   Delete a stored password")
+		fmt.Println("  change   Change a stored password")
 		fmt.Println("  register Register a new GPG key")
 		fmt.Println("  ls       List stored passwords")
 		fmt.Println("  gen      Generate a random password to clipboard")
@@ -25,13 +26,13 @@ func Run() {
 			return
 		}
 
-		success, err := savePassword(obj)
+		success, err := savePassword(*obj)
 		if err != nil {
 			return
 		}
 
 		if success {
-			fmt.Printf("Password for %s added successfully\n", obj["Name"])
+			fmt.Printf("Password for %s added successfully\n", obj.Name)
 		}
 	case "get":
 		if len(os.Args) < 3 || len(os.Args) > 3 {
@@ -49,6 +50,12 @@ func Run() {
 		register()
 	case "ls":
 		listCurrentPasswords()
+	case "change":
+		if len(os.Args) < 3 || len(os.Args) > 3 {
+			fmt.Println("Usage: vd change password_name")
+			return
+		}
+		changePassword(os.Args[2])
 	case "gen":
 		newPassword, err := generateRandomPassword()
 		if err != nil {

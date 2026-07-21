@@ -21,11 +21,16 @@ func readMasterPassword() string {
 	return string(pwBytes)
 }
 
-func readPassword() (string, error) {
+func readPassword(isNew ...bool) (string, error) {
 	password := ""
 
+	prompt := "Enter password: "
+	if len(isNew) > 0 && isNew[0] {
+		prompt = "Enter new password: "
+	}
+
 	for {
-		fmt.Print("Enter password: ")
+		fmt.Print(prompt)
 		pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			fmt.Println()
@@ -53,13 +58,13 @@ func readPassword() (string, error) {
 	return password, nil
 }
 
-func readCredential() map[string]string {
+func readCredential() *Credentials {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Error getting home directory:", err)
 		return nil
 	}
-	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
+	passwordsDir := filepath.Join(home, ".local", "share", "vd", "passwords")
 
 	emailPath := filepath.Join(home, ".local", "share", "vd", "gpg_email.txt")
 	emailBytes, err := os.ReadFile(emailPath)
@@ -68,22 +73,12 @@ func readCredential() map[string]string {
 		return nil
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil && !os.IsNotExist(err) {
-		fmt.Println("Error reading passwords directory:", err)
-		return nil
-	}
-
-	if len(entries) == 0 {
-		readMasterPassword()
-	}
-
 	var name string
 
 	fmt.Print("Enter name: ")
 	fmt.Scanln(&name)
 
-	filename := filepath.Join(dir, name)
+	filename := filepath.Join(passwordsDir, name)
 	if _, err := os.Stat(filename); err == nil {
 		fmt.Printf("Error: password for %s already exists\n", name)
 		return nil
@@ -94,6 +89,5 @@ func readCredential() map[string]string {
 		return nil
 	}
 
-	credentials := map[string]string{"Name": name, "Password": password}
-	return credentials
+	return &Credentials{Name: name, Password: password}
 }

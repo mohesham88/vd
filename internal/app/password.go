@@ -8,7 +8,7 @@ import (
 	"slices"
 )
 
-func createJSONObj(data map[string]string) ([]byte, error) {
+func createJSONObj(data Credentials) ([]byte, error) {
 	jsonObj, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return nil, err
@@ -16,7 +16,7 @@ func createJSONObj(data map[string]string) ([]byte, error) {
 	return jsonObj, nil
 }
 
-func savePassword(credentials map[string]string) (bool, error) {
+func savePassword(credentials Credentials) (bool, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return false, err
@@ -26,7 +26,7 @@ func savePassword(credentials map[string]string) (bool, error) {
 		return false, err
 	}
 
-	filename := filepath.Join(dir, credentials["Name"])
+	filename := filepath.Join(dir, credentials.Name)
 
 	data, err := createJSONObj(credentials)
 	if err != nil {
@@ -40,7 +40,7 @@ func savePassword(credentials map[string]string) (bool, error) {
 
 	os.WriteFile(filename, encrypted, 0o600)
 
-	updatePasswordsLookup(credentials["Name"])
+	updatePasswordsLookup(credentials.Name)
 
 	return true, nil
 }
@@ -76,11 +76,6 @@ func getPassword(credentialsName string) {
 	if err != nil {
 		fmt.Println("Error decrypting password file:", err)
 		return
-	}
-
-	type Credentials struct {
-		Name     string `json:"Name"`
-		Password string `json:"Password"`
 	}
 
 	var creds Credentials
@@ -134,12 +129,36 @@ func deletePassword(credentialsName string) {
 	fmt.Printf("Password for %s deleted\n", credentialsName)
 }
 
+func changePassword(targetPassword string) {
+	if !slices.Contains(readPasswordsLookup(), targetPassword) {
+		fmt.Printf("Error: password for %s doesn't exist\n", targetPassword)
+		return
+	}
+
+	newPassword, err := readPassword(true)
+	if err != nil {
+		return
+	}
+
+	var creds Credentials
+	creds.Name = targetPassword
+	creds.Password = newPassword
+
+	_, err = savePassword(creds)
+	if err != nil {
+		return
+	}
+
+	fmt.Printf("Password for `%s` changed successfully\n", targetPassword)
+}
+
 func listCurrentPasswords() {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Error getting home directory:", err)
 		return
 	}
+
 	passwordsDir := filepath.Join(home, ".local", "share", "vd", "passwords")
 
 	for _, name := range readPasswordsLookup() {
