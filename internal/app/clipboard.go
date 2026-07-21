@@ -1,7 +1,12 @@
 package app
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
 	"sync"
 
 	"golang.design/x/clipboard"
@@ -13,6 +18,15 @@ var (
 )
 
 func copyToClipboard(text string) error {
+	if isWayland() {
+		if err := wlCopy(text); err == nil {
+			return nil
+		} else if !isMissingWlCopy(err) {
+			return err
+		}
+		return nil
+	}
+
 	clipboardOnce.Do(func() {
 		clipboardErr = clipboard.Init()
 	})
@@ -23,4 +37,41 @@ func copyToClipboard(text string) error {
 	clipboard.Write(clipboard.FmtText, []byte(text))
 
 	return nil
+}
+
+func isWayland() bool {
+	return os.Getenv("WAYLAND_DISPLAY") != ""
+}
+
+func wlCopy(text string) error {
+	cmd := exec.Command("wl-copy", "--type", "text/plain")
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	_, writeErr := io.WriteString(stdin, text)
+	closeErr := stdin.Close()
+
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("wl-copy: %v: %s", err, stderr.String())
+	}
+	if writeErr != nil {
+		return fmt.Errorf("wl-copy: %w", writeErr)
+	}
+
+	return closeErr
+}
+
+func isMissingWlCopy(err error) bool {
+	var execErr *exec.Error
+	return errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound)
 }
