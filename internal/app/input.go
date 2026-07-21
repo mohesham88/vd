@@ -9,16 +9,15 @@ import (
 	"golang.org/x/term"
 )
 
-func readMasterPassword() string {
-	fmt.Print("Enter master password: ")
+func readSecret(prompt string) (string, error) {
+	fmt.Print(prompt)
 	pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		fmt.Println()
-		fmt.Println("Error reading master password:", err)
-		return ""
-	}
 	fmt.Println()
-	return string(pwBytes)
+	if err != nil {
+		fmt.Println("Error reading passphrase:", err)
+		return "", err
+	}
+	return string(pwBytes), nil
 }
 
 func readPassword(isNew ...bool) (string, error) {

@@ -3,11 +3,14 @@ package app
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
+
+const gpgPrefix = "\033[31m[GPG]\033[0m "
 
 func GenerateGPGKey(name, email, passphrase string) error {
 	if passphrase == "" {
@@ -69,16 +72,93 @@ func encrypt(plaintext []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func decrypt(ciphertext []byte) ([]byte, error) {
-	cmd := exec.Command("gpg", "--quiet", "--pinentry-mode", "loopback", "--decrypt")
-	cmd.Stdin = bytes.NewReader(ciphertext)
-	cmd.Stderr = os.Stderr
+func newPrefixWriter(w io.Writer, prefix string) *prefixWriter {
+	return &prefixWriter{w: w, prefix: []byte(prefix), atBOL: true}
+}
 
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
+func (p *prefixWriter) Write(b []byte) (int, error) {
+	n := len(b)
+	for len(b) > 0 {
+		if p.atBOL {
+			if _, err := p.w.Write(p.prefix); err != nil {
+				return 0, err
+			}
+			p.atBOL = false
+		}
+		i := bytes.IndexByte(b, '\n')
+		if i < 0 {
+			if _, err := p.w.Write(b); err != nil {
+				return 0, err
+			}
+			break
+		}
+		if _, err := p.w.Write(b[:i+1]); err != nil {
+			return 0, err
+		}
+		p.atBOL = true
+		b = b[i+1:]
+	}
+	return n, nil
+}
+
+func decrypt(ciphertext []byte) ([]byte, error) {
+	var probeErr bytes.Buffer
+	out, err := runGPGDecrypt(ciphertext, nil, &probeErr)
+	if err == nil {
+		return out.Bytes(), nil
+	}
+
+	if msg := probeErr.String(); strings.Contains(msg, "No secret key") ||
+		strings.Contains(msg, "no valid OpenPGP data") {
+		os.Stderr.Write([]byte(prefixLines(msg)))
+		return nil, fmt.Errorf("gpg decrypt failed (wrong passphrase or no key)")
+	}
+
+	passphrase, err := readSecret(gpgPrefix + "Enter Passphrase: ")
+	if err != nil {
+		return nil, err
+	}
+
+	out, err = runGPGDecrypt(ciphertext, []byte(passphrase), newPrefixWriter(os.Stderr, gpgPrefix))
+	if err != nil {
 		return nil, fmt.Errorf("gpg decrypt failed (wrong passphrase or no key): %w", err)
 	}
 
 	return out.Bytes(), nil
+}
+
+func runGPGDecrypt(ciphertext, passphrase []byte, stderr io.Writer) (*bytes.Buffer, error) {
+	cmd := exec.Command("gpg", "--quiet", "--batch", "--decrypt")
+	cmd.Stdin = bytes.NewReader(ciphertext)
+	cmd.Stderr = stderr
+
+	if passphrase != nil {
+		r, w, err := os.Pipe()
+		if err != nil {
+			return nil, err
+		}
+		defer r.Close()
+
+		// ExtraFiles[0] lands on fd 3 in the child.
+		cmd.ExtraFiles = []*os.File{r}
+		cmd.Args = append(cmd.Args, "--pinentry-mode", "loopback", "--passphrase-fd", "3")
+		go func() {
+			w.Write(append(passphrase, '\n'))
+			w.Close()
+		}()
+	}
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}
+
+func prefixLines(s string) string {
+	var b bytes.Buffer
+	newPrefixWriter(&b, gpgPrefix).Write([]byte(s))
+	return b.String()
 }
