@@ -21,6 +21,38 @@ func readMasterPassword() string {
 	return string(pwBytes)
 }
 
+func readPassword() (string, error) {
+	password := ""
+
+	for {
+		fmt.Print("Enter password: ")
+		pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			fmt.Println()
+			fmt.Println("Error reading password:", err)
+			return "", err
+		}
+		password = string(pwBytes)
+		fmt.Println()
+
+		fmt.Print("Confirm password: ")
+		confirmBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			fmt.Println()
+			fmt.Println("Error reading password:", err)
+			return "", err
+		}
+		fmt.Println()
+		if password == string(confirmBytes) {
+			break
+		}
+		fmt.Println("Password did not match, try again")
+		fmt.Println()
+	}
+
+	return password, nil
+}
+
 func readCredential() map[string]string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -47,7 +79,6 @@ func readCredential() map[string]string {
 	}
 
 	var name string
-	var password string
 
 	fmt.Print("Enter name: ")
 	fmt.Scanln(&name)
@@ -58,30 +89,9 @@ func readCredential() map[string]string {
 		return nil
 	}
 
-	for {
-		fmt.Print("Enter password: ")
-		pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			fmt.Println()
-			fmt.Println("Error reading password:", err)
-			return nil
-		}
-		password = string(pwBytes)
-		fmt.Println()
-
-		fmt.Print("Confirm password: ")
-		confirmBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			fmt.Println()
-			fmt.Println("Error reading password:", err)
-			return nil
-		}
-		fmt.Println()
-		if password == string(confirmBytes) {
-			break
-		}
-		fmt.Println("Password did not match, try again")
-		fmt.Println()
+	password, err := readPassword()
+	if err != nil {
+		return nil
 	}
 
 	credentials := map[string]string{"Name": name, "Password": password}
