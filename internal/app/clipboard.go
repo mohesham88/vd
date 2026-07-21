@@ -2,14 +2,25 @@ package app
 
 import (
 	"fmt"
+	"sync"
 
-	"github.com/atotto/clipboard"
+	"golang.design/x/clipboard"
+)
+
+var (
+	clipboardOnce sync.Once
+	clipboardErr  error
 )
 
 func copyToClipboard(text string) error {
-	if err := clipboard.WriteAll(text); err != nil {
-		return fmt.Errorf("error copying to clipboard: %w", err)
+	clipboardOnce.Do(func() {
+		clipboardErr = clipboard.Init()
+	})
+	if clipboardErr != nil {
+		return fmt.Errorf("error initializing clipboard: %w", clipboardErr)
 	}
+
+	clipboard.Write(clipboard.FmtText, []byte(text))
 
 	return nil
 }
