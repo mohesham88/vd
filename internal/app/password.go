@@ -84,7 +84,7 @@ func getPassword(credentialsName string) {
 		return
 	}
 
-	if err := copyToClipboard(creds.Password); err != nil {
+	if err := CopyToClipboard(creds.Password); err != nil {
 		fmt.Println(err)
 		return
 	}

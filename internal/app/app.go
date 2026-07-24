@@ -63,7 +63,7 @@ func Run() {
 			return
 		}
 
-		err = copyToClipboard(newPassword)
+		err = CopyToClipboard(newPassword)
 		if err != nil {
 			fmt.Println("Error: ", err)
 			return

@@ -16,7 +16,7 @@ var (
 	clipboardErr  error
 )
 
-func copyToClipboard(text string) error {
+func CopyToClipboard(text string) error {
 	if isWayland() {
 		if err := wlCopy(text); err == nil {
 			return nil
