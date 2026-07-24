@@ -21,7 +21,7 @@ func Run() {
 
 	switch os.Args[1] {
 	case "add":
-		obj := readCredential()
+		obj := ReadCredential()
 		if obj == nil {
 			return
 		}
@@ -39,7 +39,7 @@ func Run() {
 			fmt.Println("Usage: vd get password_name")
 			return
 		}
-		getPassword(os.Args[2])
+		GetPassword(os.Args[2])
 	case "delete":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: vd delete password_name")
@@ -57,13 +57,13 @@ func Run() {
 		}
 		changePassword(os.Args[2])
 	case "gen":
-		newPassword, err := generateRandomPassword()
+		newPassword, err := GenerateRandomPassword()
 		if err != nil {
 			fmt.Println("Error: ", err)
 			return
 		}
 
-		err = copyToClipboard(newPassword)
+		err = CopyToClipboard(newPassword)
 		if err != nil {
 			fmt.Println("Error: ", err)
 			return

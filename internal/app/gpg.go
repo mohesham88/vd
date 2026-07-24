@@ -12,6 +12,18 @@ import (
 
 const gpgPrefix = "\033[31m[GPG]\033[0m "
 
+var (
+	PassphraseCache  string
+	NoTerminalPrompt bool
+)
+
+func PrintErr(args ...any) {
+	if NoTerminalPrompt {
+		return
+	}
+	fmt.Println(args...)
+}
+
 func GenerateGPGKey(name, email, passphrase string) error {
 	if passphrase == "" {
 		return fmt.Errorf("passphrase must not be empty")
@@ -41,7 +53,7 @@ Passphrase: %s
 	return nil
 }
 
-func encrypt(plaintext []byte) ([]byte, error) {
+func Encrypt(plaintext []byte) ([]byte, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -66,13 +78,13 @@ func encrypt(plaintext []byte) ([]byte, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("gpg encrypt: %v: %s", err, errBuf.String())
+		return nil, fmt.Errorf("gpg Encrypt: %v: %s", err, errBuf.String())
 	}
 
 	return out.Bytes(), nil
 }
 
-func newPrefixWriter(w io.Writer, prefix string) *prefixWriter {
+func NewPrefixWriter(w io.Writer, prefix string) *prefixWriter {
 	return &prefixWriter{w: w, prefix: []byte(prefix), atBOL: true}
 }
 
@@ -101,33 +113,46 @@ func (p *prefixWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func decrypt(ciphertext []byte) ([]byte, error) {
+func Decrypt(ciphertext []byte) ([]byte, error) {
+	var cached []byte
+	if PassphraseCache != "" {
+		cached = []byte(PassphraseCache)
+	}
+
 	var probeErr bytes.Buffer
-	out, err := runGPGDecrypt(ciphertext, nil, &probeErr)
+	out, err := RunGPGDecrypt(ciphertext, cached, &probeErr)
 	if err == nil {
 		return out.Bytes(), nil
 	}
 
 	if msg := probeErr.String(); strings.Contains(msg, "No secret key") ||
 		strings.Contains(msg, "no valid OpenPGP data") {
-		os.Stderr.Write([]byte(prefixLines(msg)))
-		return nil, fmt.Errorf("gpg decrypt failed (wrong passphrase or no key)")
+		if !NoTerminalPrompt {
+			os.Stderr.Write([]byte(PrefixLines(msg)))
+		}
+		return nil, fmt.Errorf("gpg Decrypt failed (wrong passphrase or no key)")
 	}
 
-	passphrase, err := readSecret(gpgPrefix + "Enter Passphrase: ")
+	if NoTerminalPrompt {
+		return nil, fmt.Errorf("gpg needs a passphrase but the terminal is busy")
+	}
+
+	passphrase, err := ReadSecret(gpgPrefix + "Enter Passphrase: ")
 	if err != nil {
 		return nil, err
 	}
 
-	out, err = runGPGDecrypt(ciphertext, []byte(passphrase), newPrefixWriter(os.Stderr, gpgPrefix))
+	out, err = RunGPGDecrypt(ciphertext, []byte(passphrase), NewPrefixWriter(os.Stderr, gpgPrefix))
 	if err != nil {
-		return nil, fmt.Errorf("gpg decrypt failed (wrong passphrase or no key): %w", err)
+		return nil, fmt.Errorf("gpg Decrypt failed (wrong passphrase or no key): %w", err)
 	}
+
+	PassphraseCache = passphrase
 
 	return out.Bytes(), nil
 }
 
-func runGPGDecrypt(ciphertext, passphrase []byte, stderr io.Writer) (*bytes.Buffer, error) {
+func RunGPGDecrypt(ciphertext, passphrase []byte, stderr io.Writer) (*bytes.Buffer, error) {
 	cmd := exec.Command("gpg", "--quiet", "--batch", "--decrypt")
 	cmd.Stdin = bytes.NewReader(ciphertext)
 	cmd.Stderr = stderr
@@ -157,8 +182,8 @@ func runGPGDecrypt(ciphertext, passphrase []byte, stderr io.Writer) (*bytes.Buff
 	return &out, nil
 }
 
-func prefixLines(s string) string {
+func PrefixLines(s string) string {
 	var b bytes.Buffer
-	newPrefixWriter(&b, gpgPrefix).Write([]byte(s))
+	NewPrefixWriter(&b, gpgPrefix).Write([]byte(s))
 	return b.String()
 }

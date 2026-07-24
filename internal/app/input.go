@@ -9,7 +9,7 @@ import (
 	"golang.org/x/term"
 )
 
-func readSecret(prompt string) (string, error) {
+func ReadSecret(prompt string) (string, error) {
 	fmt.Print(prompt)
 	pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()
@@ -20,7 +20,7 @@ func readSecret(prompt string) (string, error) {
 	return string(pwBytes), nil
 }
 
-func readPassword(isNew ...bool) (string, error) {
+func ReadPassword(isNew ...bool) (string, error) {
 	password := ""
 
 	prompt := "Enter password: "
@@ -57,7 +57,7 @@ func readPassword(isNew ...bool) (string, error) {
 	return password, nil
 }
 
-func readCredential() *Credentials {
+func ReadCredential() *Credentials {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Error getting home directory:", err)
@@ -83,7 +83,7 @@ func readCredential() *Credentials {
 		return nil
 	}
 
-	password, err := readPassword()
+	password, err := ReadPassword()
 	if err != nil {
 		return nil
 	}

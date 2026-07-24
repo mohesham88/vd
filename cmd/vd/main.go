@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/ahmedhosssam/vd/internal/app"
+	"github.com/ahmedhosssam/vd/internal/gui"
 )
 
 func main() {
-	app.Run()
+	gui.Run()
 }
