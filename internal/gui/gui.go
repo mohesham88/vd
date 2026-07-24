@@ -35,6 +35,8 @@ var gui *gocui.Gui
 
 var passwords []string
 
+var commands = []string{"/add", "/change", "/delete", "/gen"}
+
 var (
 	locked              bool
 	passphraseMsg       string
@@ -208,7 +210,13 @@ func renderRows(g *gocui.Gui, x0, y1, x1, barH int) error {
 		return nil
 	}
 	pattern := strings.TrimSpace(sv.ViewBuffer())
-	matches := fuzzy.Search(pattern, passwords)
+	entries := passwords
+
+	if strings.HasPrefix(pattern, "/") {
+		entries = commands
+	}
+
+	matches := fuzzy.Search(pattern, entries)
 	numRows = len(matches)
 
 	for i := 0; i < numRows; i++ {
@@ -303,10 +311,14 @@ func copyRowAndQuit(g *gocui.Gui, v *gocui.View) error {
 		return gocui.ErrQuit
 	}
 
-	name := strings.TrimSpace(v.ViewBuffer())
+	rowText := strings.TrimSpace(v.ViewBuffer())
+
+	if rowText == "/gen" {
+		return handleGenCommand()
+	}
 
 	if app.ReadPasswordsLookup() == nil {
-		pendingPasswordCopy = name
+		pendingPasswordCopy = rowText
 		locked = true
 		passphraseMsg = ""
 
@@ -321,7 +333,21 @@ func copyRowAndQuit(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	app.GetPassword(name)
+	app.GetPassword(rowText)
+	return gocui.ErrQuit
+}
+
+func handleGenCommand() error {
+	newPassword, err := app.GenerateRandomPassword()
+	if err != nil {
+		return err
+	}
+
+	if err := app.CopyToClipboard(newPassword); err != nil {
+		return err
+	}
+
+	fmt.Printf("New random password copied to clipboard\n")
 	return gocui.ErrQuit
 }
 
