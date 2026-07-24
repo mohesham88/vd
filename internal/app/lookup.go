@@ -8,10 +8,14 @@ import (
 	"slices"
 )
 
+func ReadPasswordsLookup() []string {
+	return readPasswordsLookup()
+}
+
 func readPasswordsLookup() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error getting home directory:", err)
+		printErr("Error getting home directory:", err)
 		return nil
 	}
 
@@ -21,51 +25,51 @@ func readPasswordsLookup() []string {
 	data, err := os.ReadFile(lookupPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			fmt.Println("Error reading passwords_lookup:", err)
+			printErr("Error reading passwords_lookup:", err)
 			return nil
 		}
 
 		if err := os.MkdirAll(vdDir, 0o700); err != nil {
-			fmt.Println("Error creating vd directory:", err)
+			printErr("Error creating vd directory:", err)
 			return nil
 		}
 
 		lookup := map[string][]string{"current_passwords": {}}
 		emptyData, err := json.Marshal(lookup)
 		if err != nil {
-			fmt.Println("Error creating lookup JSON:", err)
+			printErr("Error creating lookup JSON:", err)
 			return nil
 		}
 
 		encrypted, err := encrypt(emptyData)
 		if err != nil {
-			fmt.Println("Error encrypting lookup:", err)
+			printErr("Error encrypting lookup:", err)
 			return nil
 		}
 
 		if err := os.WriteFile(lookupPath, encrypted, 0o600); err != nil {
-			fmt.Println("Error writing passwords_lookup:", err)
+			printErr("Error writing passwords_lookup:", err)
 			return nil
 		}
 
 		var emptyLookup map[string][]string
 		if err := json.Unmarshal(emptyData, &emptyLookup); err != nil {
-			fmt.Println("Error parsing passwords_lookup:", err)
+			printErr("Error parsing passwords_lookup:", err)
 			return nil
 		}
-		fmt.Println(emptyLookup["current_passwords"])
+		printErr(emptyLookup["current_passwords"])
 		return emptyLookup["current_passwords"]
 	}
 
 	decrypted, err := decrypt(data)
 	if err != nil {
-		fmt.Println("Error decrypting passwords_lookup:", err)
+		printErr("Error decrypting passwords_lookup:", err)
 		return nil
 	}
 
 	var lookup map[string][]string
 	if err := json.Unmarshal(decrypted, &lookup); err != nil {
-		fmt.Println("Error parsing passwords_lookup:", err)
+		printErr("Error parsing passwords_lookup:", err)
 		return nil
 	}
 

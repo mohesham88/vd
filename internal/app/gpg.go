@@ -12,6 +12,18 @@ import (
 
 const gpgPrefix = "\033[31m[GPG]\033[0m "
 
+var (
+	PassphraseCache  string
+	NoTerminalPrompt bool
+)
+
+func printErr(args ...any) {
+	if NoTerminalPrompt {
+		return
+	}
+	fmt.Println(args...)
+}
+
 func GenerateGPGKey(name, email, passphrase string) error {
 	if passphrase == "" {
 		return fmt.Errorf("passphrase must not be empty")
@@ -102,16 +114,27 @@ func (p *prefixWriter) Write(b []byte) (int, error) {
 }
 
 func decrypt(ciphertext []byte) ([]byte, error) {
+	var cached []byte
+	if PassphraseCache != "" {
+		cached = []byte(PassphraseCache)
+	}
+
 	var probeErr bytes.Buffer
-	out, err := runGPGDecrypt(ciphertext, nil, &probeErr)
+	out, err := runGPGDecrypt(ciphertext, cached, &probeErr)
 	if err == nil {
 		return out.Bytes(), nil
 	}
 
 	if msg := probeErr.String(); strings.Contains(msg, "No secret key") ||
 		strings.Contains(msg, "no valid OpenPGP data") {
-		os.Stderr.Write([]byte(prefixLines(msg)))
+		if !NoTerminalPrompt {
+			os.Stderr.Write([]byte(prefixLines(msg)))
+		}
 		return nil, fmt.Errorf("gpg decrypt failed (wrong passphrase or no key)")
+	}
+
+	if NoTerminalPrompt {
+		return nil, fmt.Errorf("gpg needs a passphrase but the terminal is busy")
 	}
 
 	passphrase, err := readSecret(gpgPrefix + "Enter Passphrase: ")
@@ -123,6 +146,8 @@ func decrypt(ciphertext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gpg decrypt failed (wrong passphrase or no key): %w", err)
 	}
+
+	PassphraseCache = passphrase
 
 	return out.Bytes(), nil
 }

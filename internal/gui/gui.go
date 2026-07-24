@@ -4,32 +4,46 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"strings"
 
 	"github.com/awesome-gocui/gocui"
 
 	"github.com/ahmedhosssam/vd/internal/app"
+	"github.com/ahmedhosssam/vd/internal/fuzzy"
 )
 
 const searchBarView = "searchbar"
+
+const passphraseView = "passphrase"
 
 const searchBarContentRows = 1
 
 const searchBarMiddleRow = searchBarContentRows / 2
 
 const (
-	numBars        = 5
 	barContentRows = 1
 	barWidth       = 60
-	barTextLength  = 10
 )
 
-const barChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+var numBars = 5
 
 var currentBar = -1
 
+var gui *gocui.Gui
+
+var passwords []string
+
+var (
+	locked        bool
+	passphraseMsg string
+)
+
 func Run() {
+	app.NoTerminalPrompt = true
+
+	passwords = app.ReadPasswordsLookup()
+	locked = passwords == nil
+
 	g, err := gocui.NewGui(gocui.OutputNormal, true)
 	if err != nil {
 		log.Panicln(err)
@@ -40,12 +54,17 @@ func Run() {
 	g.Cursor = true
 	g.SelFgColor = gocui.ColorCyan
 
+	gui = g
+
 	g.SetManagerFunc(layout)
 
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
 		log.Panicln(err)
 	}
 	if err := g.SetKeybinding(searchBarView, gocui.KeyEnter, gocui.ModNone, submit); err != nil {
+		log.Panicln(err)
+	}
+	if err := g.SetKeybinding(passphraseView, gocui.KeyEnter, gocui.ModNone, unlock); err != nil {
 		log.Panicln(err)
 	}
 	for i := 0; i < numBars; i++ {
@@ -70,6 +89,10 @@ func Run() {
 }
 
 func layout(g *gocui.Gui) error {
+	if locked {
+		return passphraseLayout(g)
+	}
+
 	maxX, maxY := g.Size()
 	w := barWidth
 	h := searchBarContentRows + 1
@@ -111,19 +134,96 @@ func layout(g *gocui.Gui) error {
 			bv.Frame = false
 			bv.BgColor = gocui.ColorWhite
 			bv.FgColor = gocui.ColorBlack
-			fmt.Fprint(bv, randomText(barTextLength))
 		}
+	}
+
+	updateBarsNow(g)
+
+	return nil
+}
+
+func passphraseLayout(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	w := barWidth
+	h := searchBarContentRows + 1
+	x0 := (maxX - w) / 2
+	y0 := (maxY - h) / 2
+
+	v, err := g.SetView(passphraseView, x0, y0, x0+w, y0+h, 0)
+	if err != nil {
+		if !errors.Is(err, gocui.ErrUnknownView) {
+			return err
+		}
+		v.Editable = true
+		v.Wrap = false
+		v.Mask = '*'
+		v.Editor = gocui.EditorFunc(passphraseEditor)
+		if _, err := g.SetCurrentView(passphraseView); err != nil {
+			return err
+		}
+	}
+
+	v.Title = " GPG passphrase "
+	if passphraseMsg != "" {
+		v.Title = " " + passphraseMsg + " "
 	}
 
 	return nil
 }
 
-func randomText(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = barChars[rand.Intn(len(barChars))]
+func unlock(g *gocui.Gui, v *gocui.View) error {
+	app.PassphraseCache = strings.TrimRight(v.Buffer(), "\r\n")
+
+	passwords = app.ReadPasswordsLookup()
+	if passwords == nil {
+		app.PassphraseCache = ""
+		passphraseMsg = "wrong passphrase, try again"
+		v.Clear()
+		if err := v.SetOrigin(0, 0); err != nil {
+			return err
+		}
+		return v.SetCursorUnrestricted(0, 0)
 	}
-	return string(b)
+
+	locked = false
+	return g.DeleteView(passphraseView)
+}
+
+func passphraseEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
+	switch key {
+	case gocui.KeyEnter, gocui.KeyCtrlJ:
+		return
+	case gocui.KeyArrowUp, gocui.KeyArrowDown:
+		return
+	case gocui.KeyBackspace, gocui.KeyBackspace2:
+		if cx, _ := v.Cursor(); cx == 0 {
+			return
+		}
+	}
+	gocui.DefaultEditor.Edit(v, key, ch, mod)
+}
+
+func updateBarsNow(g *gocui.Gui) {
+	sv, err := g.View(searchBarView)
+	if err != nil {
+		return
+	}
+	pattern := strings.TrimSpace(sv.ViewBuffer())
+	matches := fuzzy.Search(pattern, passwords)
+	numBars = len(matches)
+
+	for i := 0; i < numBars; i++ {
+		bv, err := g.View(barViewName(i))
+		if err != nil {
+			continue
+		}
+		bv.Clear()
+		text := ""
+		if i < len(matches) {
+			text = matches[i].Str
+		}
+		fmt.Fprint(bv, text)
+	}
 }
 
 func quit(g *gocui.Gui, v *gocui.View) error {
@@ -135,7 +235,7 @@ func barViewName(i int) string {
 }
 
 func setBarView(g *gocui.Gui, i int) error {
-	if i < -1 || i >= numBars {
+	if locked || i < -1 || i >= numBars {
 		return nil
 	}
 	if currentBar >= 0 {
@@ -187,6 +287,8 @@ func oneLineEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 		}
 	}
 	gocui.DefaultEditor.Edit(v, key, ch, mod)
+
+	updateBarsNow(gui)
 
 	if cx, cy := v.Cursor(); cy != searchBarMiddleRow {
 		_ = v.SetCursorUnrestricted(cx, searchBarMiddleRow)
