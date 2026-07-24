@@ -9,13 +9,9 @@ import (
 )
 
 func ReadPasswordsLookup() []string {
-	return readPasswordsLookup()
-}
-
-func readPasswordsLookup() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		printErr("Error getting home directory:", err)
+		PrintErr("Error getting home directory:", err)
 		return nil
 	}
 
@@ -25,58 +21,58 @@ func readPasswordsLookup() []string {
 	data, err := os.ReadFile(lookupPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			printErr("Error reading passwords_lookup:", err)
+			PrintErr("Error reading passwords_lookup:", err)
 			return nil
 		}
 
 		if err := os.MkdirAll(vdDir, 0o700); err != nil {
-			printErr("Error creating vd directory:", err)
+			PrintErr("Error creating vd directory:", err)
 			return nil
 		}
 
 		lookup := map[string][]string{"current_passwords": {}}
 		emptyData, err := json.Marshal(lookup)
 		if err != nil {
-			printErr("Error creating lookup JSON:", err)
+			PrintErr("Error creating lookup JSON:", err)
 			return nil
 		}
 
-		encrypted, err := encrypt(emptyData)
+		encrypted, err := Encrypt(emptyData)
 		if err != nil {
-			printErr("Error encrypting lookup:", err)
+			PrintErr("Error encrypting lookup:", err)
 			return nil
 		}
 
 		if err := os.WriteFile(lookupPath, encrypted, 0o600); err != nil {
-			printErr("Error writing passwords_lookup:", err)
+			PrintErr("Error writing passwords_lookup:", err)
 			return nil
 		}
 
 		var emptyLookup map[string][]string
 		if err := json.Unmarshal(emptyData, &emptyLookup); err != nil {
-			printErr("Error parsing passwords_lookup:", err)
+			PrintErr("Error parsing passwords_lookup:", err)
 			return nil
 		}
-		printErr(emptyLookup["current_passwords"])
+		PrintErr(emptyLookup["current_passwords"])
 		return emptyLookup["current_passwords"]
 	}
 
-	decrypted, err := decrypt(data)
+	decrypted, err := Decrypt(data)
 	if err != nil {
-		printErr("Error decrypting passwords_lookup:", err)
+		PrintErr("Error decrypting passwords_lookup:", err)
 		return nil
 	}
 
 	var lookup map[string][]string
 	if err := json.Unmarshal(decrypted, &lookup); err != nil {
-		printErr("Error parsing passwords_lookup:", err)
+		PrintErr("Error parsing passwords_lookup:", err)
 		return nil
 	}
 
 	return lookup["current_passwords"]
 }
 
-func updatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
+func UpdatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 	toBeDeletedFlag := false
 	if len(toBeDeleted) > 0 {
 		toBeDeletedFlag = toBeDeleted[0]
@@ -109,7 +105,7 @@ func updatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 			return
 		}
 
-		encrypted, err := encrypt(data)
+		encrypted, err := Encrypt(data)
 		if err != nil {
 			fmt.Println("Error encrypting lookup:", err)
 			return
@@ -128,7 +124,7 @@ func updatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 		return
 	}
 
-	decrypted, err := decrypt(plaintext)
+	decrypted, err := Decrypt(plaintext)
 	if err != nil {
 		fmt.Println("Error decrypting passwords_lookup:", err)
 		return
@@ -164,7 +160,7 @@ func updatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 		return
 	}
 
-	encrypted, err := encrypt(data)
+	encrypted, err := Encrypt(data)
 	if err != nil {
 		fmt.Println("Error encrypting lookup:", err)
 		return

@@ -17,10 +17,10 @@ var (
 )
 
 func CopyToClipboard(text string) error {
-	if isWayland() {
-		if err := wlCopy(text); err == nil {
+	if IsWayland() {
+		if err := WlCopy(text); err == nil {
 			return nil
-		} else if !isMissingWlCopy(err) {
+		} else if !IsMissingWlCopy(err) {
 			return err
 		}
 		return nil
@@ -38,11 +38,11 @@ func CopyToClipboard(text string) error {
 	return nil
 }
 
-func isWayland() bool {
+func IsWayland() bool {
 	return os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
-func wlCopy(text string) error {
+func WlCopy(text string) error {
 	cmd := exec.Command("wl-copy", "--type", "text/plain")
 
 	stdin, err := cmd.StdinPipe()
@@ -69,7 +69,7 @@ func wlCopy(text string) error {
 	return closeErr
 }
 
-func isMissingWlCopy(err error) bool {
+func IsMissingWlCopy(err error) bool {
 	var execErr *exec.Error
 	return errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound)
 }

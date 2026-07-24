@@ -33,20 +33,20 @@ func savePassword(credentials Credentials) (bool, error) {
 		return false, err
 	}
 
-	encrypted, err := encrypt(data)
+	encrypted, err := Encrypt(data)
 	if err != nil {
 		return false, err
 	}
 
 	os.WriteFile(filename, encrypted, 0o600)
 
-	updatePasswordsLookup(credentials.Name)
+	UpdatePasswordsLookup(credentials.Name)
 
 	return true, nil
 }
 
 func GetPassword(credentialsName string) {
-	if !slices.Contains(readPasswordsLookup(), credentialsName) {
+	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
 		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
 		return
 	}
@@ -62,7 +62,7 @@ func GetPassword(credentialsName string) {
 
 	if _, err := os.Stat(filename); err != nil {
 		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
-		updatePasswordsLookup(credentialsName, true)
+		UpdatePasswordsLookup(credentialsName, true)
 		return
 	}
 
@@ -72,7 +72,7 @@ func GetPassword(credentialsName string) {
 		return
 	}
 
-	decrypted, err := decrypt(data)
+	decrypted, err := Decrypt(data)
 	if err != nil {
 		fmt.Println("Error decrypting password file:", err)
 		return
@@ -92,7 +92,7 @@ func GetPassword(credentialsName string) {
 }
 
 func deletePassword(credentialsName string) {
-	if !slices.Contains(readPasswordsLookup(), credentialsName) {
+	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
 		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
 		return
 	}
@@ -108,7 +108,7 @@ func deletePassword(credentialsName string) {
 
 	if _, err := os.Stat(filename); err != nil {
 		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
-		updatePasswordsLookup(credentialsName, true)
+		UpdatePasswordsLookup(credentialsName, true)
 		return
 	}
 
@@ -124,18 +124,18 @@ func deletePassword(credentialsName string) {
 		return
 	}
 
-	updatePasswordsLookup(credentialsName, true)
+	UpdatePasswordsLookup(credentialsName, true)
 
 	fmt.Printf("Password for %s deleted\n", credentialsName)
 }
 
 func changePassword(targetPassword string) {
-	if !slices.Contains(readPasswordsLookup(), targetPassword) {
+	if !slices.Contains(ReadPasswordsLookup(), targetPassword) {
 		fmt.Printf("Error: password for %s doesn't exist\n", targetPassword)
 		return
 	}
 
-	newPassword, err := readPassword(true)
+	newPassword, err := ReadPassword(true)
 	if err != nil {
 		return
 	}
@@ -161,10 +161,10 @@ func listCurrentPasswords() {
 
 	passwordsDir := filepath.Join(home, ".local", "share", "vd", "passwords")
 
-	for _, name := range readPasswordsLookup() {
+	for _, name := range ReadPasswordsLookup() {
 		if _, err := os.Stat(filepath.Join(passwordsDir, name)); err != nil {
 			if os.IsNotExist(err) {
-				updatePasswordsLookup(name, true)
+				UpdatePasswordsLookup(name, true)
 				continue
 			}
 			fmt.Println("Error checking password file:", err)

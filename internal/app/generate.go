@@ -5,7 +5,7 @@ import (
 	"math/big"
 )
 
-func generateRandomPassword() (string, error) {
+func GenerateRandomPassword() (string, error) {
 	charset := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()"
 	length := 20
 

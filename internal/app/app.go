@@ -21,7 +21,7 @@ func Run() {
 
 	switch os.Args[1] {
 	case "add":
-		obj := readCredential()
+		obj := ReadCredential()
 		if obj == nil {
 			return
 		}
@@ -57,7 +57,7 @@ func Run() {
 		}
 		changePassword(os.Args[2])
 	case "gen":
-		newPassword, err := generateRandomPassword()
+		newPassword, err := GenerateRandomPassword()
 		if err != nil {
 			fmt.Println("Error: ", err)
 			return
