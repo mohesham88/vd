@@ -64,6 +64,11 @@ func Run() {
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
 		log.Panicln(err)
 	}
+
+	if err := g.SetKeybinding(searchBarView, gocui.KeyEnter, gocui.ModNone, copyFirstRowAndQuit); err != nil {
+		log.Panicln(err)
+	}
+
 	if err := g.SetKeybinding(passphraseView, gocui.KeyEnter, gocui.ModNone, unlock); err != nil {
 		log.Panicln(err)
 	}
@@ -216,15 +221,23 @@ func renderRows(g *gocui.Gui, x0, y1, x1, barH int) error {
 			return err
 		}
 		bv.Wrap = false
+
 		if isNew {
-			bv.Frame = false
 			bv.BgColor = gocui.ColorWhite
 			bv.FgColor = gocui.ColorBlack
-		} else if i == currentRow {
+		}
+
+		hotRow := currentRow
+		if currentRow == -1 {
+			hotRow = 0
+		}
+
+		if i == hotRow {
 			bv.Frame = true
 		} else {
 			bv.Frame = false
 		}
+
 		bv.Clear()
 		fmt.Fprint(bv, matches[i].Str)
 	}
@@ -278,7 +291,11 @@ func cursorUp(g *gocui.Gui, v *gocui.View) error {
 }
 
 func cursorDown(g *gocui.Gui, v *gocui.View) error {
-	return setRowView(g, currentRow+1)
+	next := currentRow + 1
+	if currentRow == -1 {
+		next = 1
+	}
+	return setRowView(g, next)
 }
 
 func copyRowAndQuit(g *gocui.Gui, v *gocui.View) error {
@@ -306,6 +323,19 @@ func copyRowAndQuit(g *gocui.Gui, v *gocui.View) error {
 
 	app.GetPassword(name)
 	return gocui.ErrQuit
+}
+
+func copyFirstRowAndQuit(g *gocui.Gui, v *gocui.View) error {
+	if numRows == 0 {
+		return nil
+	}
+
+	bv, err := g.View(barViewName(0))
+	if err != nil {
+		return nil
+	}
+
+	return copyRowAndQuit(g, bv)
 }
 
 func oneLineEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
