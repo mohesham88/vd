@@ -36,8 +36,9 @@ var gui *gocui.Gui
 var passwords []string
 
 var (
-	locked        bool
-	passphraseMsg string
+	locked              bool
+	passphraseMsg       string
+	pendingPasswordCopy string
 )
 
 func Run() {
@@ -169,7 +170,17 @@ func unlock(g *gocui.Gui, v *gocui.View) error {
 	}
 
 	locked = false
-	return g.DeleteView(passphraseView)
+	if err := g.DeleteView(passphraseView); err != nil {
+		return err
+	}
+
+	if pendingPasswordCopy != "" {
+		name := pendingPasswordCopy
+		pendingPasswordCopy = ""
+		app.GetPassword(name)
+		return gocui.ErrQuit
+	}
+	return nil
 }
 
 func passphraseEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
@@ -271,9 +282,29 @@ func cursorDown(g *gocui.Gui, v *gocui.View) error {
 }
 
 func copyRowAndQuit(g *gocui.Gui, v *gocui.View) error {
-	if v != nil {
-		app.GetPassword(strings.TrimSpace(v.ViewBuffer()))
+	if v == nil {
+		return gocui.ErrQuit
 	}
+
+	name := strings.TrimSpace(v.ViewBuffer())
+
+	if app.ReadPasswordsLookup() == nil {
+		pendingPasswordCopy = name
+		locked = true
+		passphraseMsg = ""
+
+		for i := range maxRows {
+			if _, err := g.View(barViewName(i)); err == nil {
+				_ = g.DeleteView(barViewName(i))
+			}
+		}
+		if _, err := g.View(searchBarView); err == nil {
+			_ = g.DeleteView(searchBarView)
+		}
+		return nil
+	}
+
+	app.GetPassword(name)
 	return gocui.ErrQuit
 }
 
