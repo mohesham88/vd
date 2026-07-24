@@ -283,14 +283,12 @@ func setRowView(g *gocui.Gui, i int) error {
 		}
 	}
 	currentRow = i
-	name := searchBarView
 	if i >= 0 {
-		name = barViewName(i)
-		if nv, err := g.View(name); err == nil {
+		if nv, err := g.View(barViewName(i)); err == nil {
 			nv.Frame = true
 		}
 	}
-	_, err := g.SetCurrentView(name)
+	_, err := g.SetCurrentView(searchBarView)
 	return err
 }
 
@@ -356,7 +354,12 @@ func copyFirstRowAndQuit(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	bv, err := g.View(barViewName(0))
+	row := currentRow
+	if row < 0 {
+		row = 0
+	}
+
+	bv, err := g.View(barViewName(row))
 	if err != nil {
 		return nil
 	}
