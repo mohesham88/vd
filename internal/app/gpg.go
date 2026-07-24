@@ -69,7 +69,7 @@ func Encrypt(plaintext []byte) ([]byte, error) {
 
 	cmd := exec.Command("gpg",
 		"--batch", "--yes",
-		"--Encrypt", "--recipient", recipient,
+		"--encrypt", "--recipient", recipient,
 	)
 
 	cmd.Stdin = bytes.NewReader(plaintext)
@@ -153,7 +153,7 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 }
 
 func RunGPGDecrypt(ciphertext, passphrase []byte, stderr io.Writer) (*bytes.Buffer, error) {
-	cmd := exec.Command("gpg", "--quiet", "--batch", "--Decrypt")
+	cmd := exec.Command("gpg", "--quiet", "--batch", "--decrypt")
 	cmd.Stdin = bytes.NewReader(ciphertext)
 	cmd.Stderr = stderr
 
