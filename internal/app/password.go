@@ -45,7 +45,7 @@ func savePassword(credentials Credentials) (bool, error) {
 	return true, nil
 }
 
-func getPassword(credentialsName string) {
+func GetPassword(credentialsName string) {
 	if !slices.Contains(readPasswordsLookup(), credentialsName) {
 		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
 		return

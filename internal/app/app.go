@@ -39,7 +39,7 @@ func Run() {
 			fmt.Println("Usage: vd get password_name")
 			return
 		}
-		getPassword(os.Args[2])
+		GetPassword(os.Args[2])
 	case "delete":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: vd delete password_name")

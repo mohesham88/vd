@@ -63,9 +63,6 @@ func Run() {
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
 		log.Panicln(err)
 	}
-	if err := g.SetKeybinding(searchBarView, gocui.KeyEnter, gocui.ModNone, submit); err != nil {
-		log.Panicln(err)
-	}
 	if err := g.SetKeybinding(passphraseView, gocui.KeyEnter, gocui.ModNone, unlock); err != nil {
 		log.Panicln(err)
 	}
@@ -272,13 +269,9 @@ func cursorDown(g *gocui.Gui, v *gocui.View) error {
 	return setBarView(g, currentBar+1)
 }
 
-func submit(g *gocui.Gui, v *gocui.View) error {
-	return gocui.ErrQuit
-}
-
 func copyBarAndQuit(g *gocui.Gui, v *gocui.View) error {
 	if v != nil {
-		_ = app.CopyToClipboard(strings.TrimSpace(v.ViewBuffer()))
+		app.GetPassword(strings.TrimSpace(v.ViewBuffer()))
 	}
 	return gocui.ErrQuit
 }
