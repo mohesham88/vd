@@ -78,7 +78,7 @@ func Run() {
 		log.Panicln(err)
 	}
 
-	if err := g.SetKeybinding(PasswordsView, gocui.KeyEnter, gocui.ModNone, handleGetPassword); err != nil {
+	if err := g.SetKeybinding(PasswordsView, gocui.KeyEnter, gocui.ModNone, handleSearchBarEnter); err != nil {
 		log.Panicln(err)
 	}
 
@@ -232,7 +232,7 @@ func passwordsLayout(g *gocui.Gui) error {
 		return err
 	}
 
-	if err := renderRows(g, x0, y1+1, x1); err != nil {
+	if err := renderRows(g); err != nil {
 		return err
 	}
 
@@ -308,7 +308,15 @@ func isCommandsQuery() bool {
 	return strings.HasPrefix(query, "/")
 }
 
-func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
+func renderRows(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	w := 60
+	h := 2
+	x0 := (maxX - w) / 2
+	y0 := (maxY - h) / 2
+	x1 := x0 + w
+	y1 := y0 + h + 1
+
 	var entries []string
 
 	isCommands := isCommandsQuery()
@@ -403,7 +411,22 @@ func filterPasswords() []string {
 	return entries
 }
 
-func handleGetPassword(g *gocui.Gui, v *gocui.View) error {
+func handleSearchBarEnter(g *gocui.Gui, v *gocui.View) error {
+	var result error
+	if isCommandsQuery() {
+		result = handleCommand(g)
+	} else {
+		result = handleGetPassword(g)
+	}
+
+	query = ""
+	v.Clear()
+	v.SetCursorUnrestricted(0, 0)
+
+	return result
+}
+
+func handleGetPassword(g *gocui.Gui) error {
 	entries := filterPasswords()
 
 	if len(entries) == 0 {
@@ -420,5 +443,24 @@ func handleGetPassword(g *gocui.Gui, v *gocui.View) error {
 
 	app.GetPassword(passwordName)
 	showFeedback(g, fmt.Sprintf("Password for `%s` copied to clipboard!", passwordName))
+	return nil
+}
+
+func handleCommand(g *gocui.Gui) error {
+	commands := filterCommands()
+
+	commandName := commands[selectedRow]
+
+	if commandName == "/gen" {
+		randomPassword, err := app.GenerateRandomPassword()
+		if err != nil {
+			showFeedback(g, "Error happened during generating random password")
+			return err
+		}
+
+		app.CopyToClipboard(randomPassword)
+		showFeedback(g, "Generated password copied to clipboard!")
+	}
+
 	return nil
 }
