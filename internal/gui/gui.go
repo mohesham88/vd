@@ -211,6 +211,7 @@ func passwordsSearchEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modi
 	newQuery := strings.TrimRight(v.Buffer(), "\r\n")
 	if newQuery != query {
 		query = newQuery
+		clearFeedback()
 		if isCommandsQuery() {
 			selectedRow = 1<<31 - 1
 		} else {
@@ -313,6 +314,11 @@ func showFeedback(g *gocui.Gui, msg string) {
 			return nil
 		})
 	}()
+}
+
+func clearFeedback() {
+	feedbackMsg = ""
+	feedbackID++
 }
 
 func nextRow(g *gocui.Gui, v *gocui.View) error {
