@@ -350,16 +350,19 @@ func filterPasswords() []string {
 func handleGetPassword(g *gocui.Gui, v *gocui.View) error {
 	entries := filterPasswords()
 
+	if len(entries) == 0 {
+		return nil
+	}
+
 	passwordName := entries[selectedRow]
 
 	passwordsTmp := app.ReadPasswordsLookup()
 
 	if passwordsTmp == nil {
 		viewStack = append(viewStack, GpgPassphraseView)
-		return nil
 	}
 
 	app.GetPassword(passwordName)
-	showFeedback(g, fmt.Sprintf("Password for `%s` copied to clipboard", passwordName))
+	showFeedback(g, fmt.Sprintf("Password for `%s` copied to clipboard!", passwordName))
 	return nil
 }
