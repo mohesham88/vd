@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -11,21 +12,21 @@ import (
 func register() {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error getting home directory:", err)
+		log.Println("Error getting home directory:", err)
 		return
 	}
 
 	vdDir := filepath.Join(home, ".local", "share", "vd")
 
 	if err := os.MkdirAll(vdDir, 0o700); err != nil {
-		fmt.Println("Error creating vd directory:", err)
+		log.Println("Error creating vd directory:", err)
 		return
 	}
 
 	emailPath := filepath.Join(vdDir, "gpg_email.txt")
 
 	if _, err := os.Stat(emailPath); err == nil {
-		fmt.Printf("Error: password for %s already exists\n", emailPath)
+		log.Printf("Error: password for %s already exists", emailPath)
 		return
 	}
 
@@ -39,36 +40,36 @@ func register() {
 		fmt.Print("Enter master password: ")
 		pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			fmt.Println()
-			fmt.Println("Error reading password:", err)
+			log.Println()
+			log.Println("Error reading password:", err)
 			return
 		}
 		password = string(pwBytes)
-		fmt.Println()
+		log.Println()
 
 		fmt.Print("Confirm master password: ")
 		confirmBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			fmt.Println()
-			fmt.Println("Error reading password:", err)
+			log.Println()
+			log.Println("Error reading password:", err)
 			return
 		}
-		fmt.Println()
+		log.Println()
 		if password == string(confirmBytes) {
 			break
 		}
-		fmt.Println("Master password did not match, try again")
-		fmt.Println()
+		log.Println("Master password did not match, try again")
+		log.Println()
 	}
 
 	if err := GenerateGPGKey(name, email, password); err != nil {
-		fmt.Println("Error generating GPG key:", err)
+		log.Println("Error generating GPG key:", err)
 		return
 	}
 
 	if err := os.WriteFile(emailPath, []byte(email), 0o600); err != nil {
-		fmt.Println("Error storing email:", err)
+		log.Println("Error storing email:", err)
 		return
 	}
-	fmt.Println("Registration complete")
+	log.Println("Registration complete")
 }

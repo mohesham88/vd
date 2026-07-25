@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,9 +13,9 @@ import (
 func ReadSecret(prompt string) (string, error) {
 	fmt.Print(prompt)
 	pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
+	log.Println()
 	if err != nil {
-		fmt.Println("Error reading passphrase:", err)
+		log.Println("Error reading passphrase:", err)
 		return "", err
 	}
 	return string(pwBytes), nil
@@ -32,26 +33,26 @@ func ReadPassword(isNew ...bool) (string, error) {
 		fmt.Print(prompt)
 		pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			fmt.Println()
-			fmt.Println("Error reading password:", err)
+			log.Println()
+			log.Println("Error reading password:", err)
 			return "", err
 		}
 		password = string(pwBytes)
-		fmt.Println()
+		log.Println()
 
 		fmt.Print("Confirm password: ")
 		confirmBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			fmt.Println()
-			fmt.Println("Error reading password:", err)
+			log.Println()
+			log.Println("Error reading password:", err)
 			return "", err
 		}
-		fmt.Println()
+		log.Println()
 		if password == string(confirmBytes) {
 			break
 		}
-		fmt.Println("Password did not match, try again")
-		fmt.Println()
+		log.Println("Password did not match, try again")
+		log.Println()
 	}
 
 	return password, nil
@@ -60,7 +61,7 @@ func ReadPassword(isNew ...bool) (string, error) {
 func ReadCredential() *Credentials {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error getting home directory:", err)
+		log.Println("Error getting home directory:", err)
 		return nil
 	}
 	passwordsDir := filepath.Join(home, ".local", "share", "vd", "passwords")
@@ -68,7 +69,7 @@ func ReadCredential() *Credentials {
 	emailPath := filepath.Join(home, ".local", "share", "vd", "gpg_email.txt")
 	emailBytes, err := os.ReadFile(emailPath)
 	if err != nil || len(strings.TrimSpace(string(emailBytes))) == 0 {
-		fmt.Println("No GPG key registered. Run `vd register` first.")
+		log.Println("No GPG key registered. Run `vd register` first.")
 		return nil
 	}
 
@@ -79,7 +80,7 @@ func ReadCredential() *Credentials {
 
 	filename := filepath.Join(passwordsDir, name)
 	if _, err := os.Stat(filename); err == nil {
-		fmt.Printf("Error: password for %s already exists\n", name)
+		log.Printf("Error: password for %s already exists", name)
 		return nil
 	}
 
