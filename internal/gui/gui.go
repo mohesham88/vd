@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/awesome-gocui/gocui"
 	"github.com/sahilm/fuzzy"
@@ -15,6 +16,7 @@ import (
 const (
 	GpgPassphraseView = "gpgpassphraseview"
 	PasswordsView     = "passwordsview"
+	FeedbackView      = "feedbackview"
 )
 
 var (
@@ -26,6 +28,8 @@ var (
 	selectedRow   int
 	rowCount      int
 	query         string
+	feedbackMsg   string
+	feedbackID    int
 )
 
 func Run() {
@@ -218,11 +222,52 @@ func passwordsLayout(g *gocui.Gui) error {
 		}
 	}
 
+	if err := renderFeedback(g, x0, y0, x1); err != nil {
+		return err
+	}
+
 	if err := renderRows(g, x0, y1+1, x1); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func renderFeedback(g *gocui.Gui, x0, y0, x1 int) error {
+	if feedbackMsg == "" {
+		if _, err := g.View(FeedbackView); err == nil {
+			return g.DeleteView(FeedbackView)
+		}
+		return nil
+	}
+
+	fv, err := g.SetView(FeedbackView, x0, y0-2, x1, y0, 0)
+	if err != nil && !errors.Is(err, gocui.ErrUnknownView) {
+		return err
+	}
+	fv.Frame = false
+	fv.FgColor = gocui.ColorMagenta
+
+	fv.Clear()
+	fmt.Fprint(fv, feedbackMsg)
+
+	return nil
+}
+
+func showFeedback(g *gocui.Gui, msg string) {
+	feedbackMsg = msg
+	feedbackID++
+	id := feedbackID
+
+	go func() {
+		time.Sleep(3 * time.Second)
+		g.Update(func(g *gocui.Gui) error {
+			if id == feedbackID {
+				feedbackMsg = ""
+			}
+			return nil
+		})
+	}()
 }
 
 func nextRow(g *gocui.Gui, v *gocui.View) error {
@@ -315,5 +360,6 @@ func handleGetPassword(g *gocui.Gui, v *gocui.View) error {
 	}
 
 	app.GetPassword(passwordName)
+	showFeedback(g, fmt.Sprintf("Password for `%s` copied to clipboard", passwordName))
 	return nil
 }
