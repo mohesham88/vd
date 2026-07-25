@@ -21,6 +21,8 @@ var (
 	passphraseMsg string
 	viewStack     []string
 	gui           *gocui.Gui
+	selectedRow   int
+	rowCount      int
 )
 
 func Run() {
@@ -56,6 +58,14 @@ func Run() {
 	}
 
 	if err := g.SetKeybinding(GpgPassphraseView, gocui.KeyEnter, gocui.ModNone, unlock); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(PasswordsView, gocui.KeyArrowDown, gocui.ModNone, nextRow); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(PasswordsView, gocui.KeyArrowUp, gocui.ModNone, prevRow); err != nil {
 		log.Panicln(err)
 	}
 
@@ -202,11 +212,33 @@ func passwordsLayout(g *gocui.Gui) error {
 	return nil
 }
 
+func nextRow(g *gocui.Gui, v *gocui.View) error {
+	if selectedRow < rowCount-1 {
+		selectedRow++
+	}
+	return nil
+}
+
+func prevRow(g *gocui.Gui, v *gocui.View) error {
+	if selectedRow > 0 {
+		selectedRow--
+	}
+	return nil
+}
+
 func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
 	entries := []string{"sdfg", "sdefghs", "efijugh"}
 
 	numRows := len(entries)
 	rowH := 2
+
+	rowCount = numRows
+	if selectedRow >= numRows {
+		selectedRow = numRows - 1
+	}
+	if selectedRow < 0 {
+		selectedRow = 0
+	}
 
 	for i := range numRows {
 		by0 := y1 + i*(rowH)
@@ -220,10 +252,12 @@ func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
 		bv.Wrap = false
 		bv.Frame = false
 
-		if isNew {
+		if i == selectedRow {
+			bv.BgColor = gocui.ColorCyan
+		} else {
 			bv.BgColor = gocui.ColorWhite
-			bv.FgColor = gocui.ColorBlack
 		}
+		bv.FgColor = gocui.ColorBlack
 
 		bv.Clear()
 		fmt.Fprint(bv, entries[i])
