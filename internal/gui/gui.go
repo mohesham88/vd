@@ -172,7 +172,11 @@ func passwordsSearchEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modi
 	newQuery := strings.TrimRight(v.Buffer(), "\r\n")
 	if newQuery != query {
 		query = newQuery
-		selectedRow = 0
+		if isCommandsQuery() {
+			selectedRow = 1<<31 - 1
+		} else {
+			selectedRow = 0
+		}
 	}
 }
 
@@ -273,23 +277,43 @@ func showFeedback(g *gocui.Gui, msg string) {
 }
 
 func nextRow(g *gocui.Gui, v *gocui.View) error {
+	if isCommandsQuery() {
+		return moveUp()
+	}
+	return moveDown()
+}
+
+func prevRow(g *gocui.Gui, v *gocui.View) error {
+	if isCommandsQuery() {
+		return moveDown()
+	}
+	return moveUp()
+}
+
+func moveDown() error {
 	if selectedRow < rowCount-1 {
 		selectedRow++
 	}
 	return nil
 }
 
-func prevRow(g *gocui.Gui, v *gocui.View) error {
+func moveUp() error {
 	if selectedRow > 0 {
 		selectedRow--
 	}
 	return nil
 }
 
+func isCommandsQuery() bool {
+	return strings.HasPrefix(query, "/")
+}
+
 func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
 	var entries []string
 
-	if strings.HasPrefix(query, "/") {
+	isCommands := isCommandsQuery()
+
+	if isCommands {
 		entries = filterCommands()
 	} else {
 		entries = filterPasswords()
@@ -307,7 +331,12 @@ func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
 	}
 
 	for i := range numRows {
-		by0 := y1 + i*(rowH)
+		by0 := y1 + i*rowH
+
+		if isCommands {
+			by0 = -5 + y1 - i*(rowH-1)
+		}
+
 		by1 := by0 + rowH
 
 		bv, err := g.SetView(fmt.Sprintf("row%d", i), x0, by0, x1, by1, 0)
@@ -320,10 +349,16 @@ func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
 
 		if i == selectedRow {
 			bv.BgColor = gocui.ColorMagenta
+			bv.FgColor = gocui.ColorBlack
 		} else {
-			bv.BgColor = gocui.ColorWhite
+			if isCommands {
+				bv.BgColor = gocui.ColorBlack
+				bv.FgColor = gocui.ColorWhite
+			} else {
+				bv.BgColor = gocui.ColorWhite
+				bv.FgColor = gocui.ColorBlack
+			}
 		}
-		bv.FgColor = gocui.ColorBlack
 
 		bv.Clear()
 		fmt.Fprint(bv, entries[i])
