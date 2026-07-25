@@ -17,7 +17,7 @@ func createJSONObj(data Credentials) ([]byte, error) {
 	return jsonObj, nil
 }
 
-func savePassword(credentials Credentials) (bool, error) {
+func SavePassword(credentials Credentials) (bool, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return false, err
@@ -145,7 +145,7 @@ func changePassword(targetPassword string) {
 	creds.Name = targetPassword
 	creds.Password = newPassword
 
-	_, err = savePassword(creds)
+	_, err = SavePassword(creds)
 	if err != nil {
 		return
 	}

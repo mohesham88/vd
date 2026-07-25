@@ -16,7 +16,17 @@ import (
 const (
 	GpgPassphraseView = "gpgpassphraseview"
 	PasswordsView     = "passwordsview"
+	AddPasswordView   = "addpasswordview"
+	AddNameView       = "addnameview"
+	AddPassView       = "addpassview"
+	AddConfirmView    = "addconfirmview"
 	FeedbackView      = "feedbackview"
+)
+
+var (
+	addViews  = []string{AddNameView, AddPassView, AddConfirmView}
+	addTitles = []string{" Password Name ", " Password ", " Password Confirmation "}
+	addFocus  int
 )
 
 var Commands = []string{"/add", "/delete", "/change", "/gen"}
@@ -82,6 +92,24 @@ func Run() {
 		log.Panicln(err)
 	}
 
+	for _, name := range addViews {
+		if err := g.SetKeybinding(name, gocui.KeyTab, gocui.ModNone, nextAddField); err != nil {
+			log.Panicln(err)
+		}
+
+		if err := g.SetKeybinding(name, gocui.KeyBacktab, gocui.ModNone, prevAddField); err != nil {
+			log.Panicln(err)
+		}
+
+		if err := g.SetKeybinding(name, gocui.KeyEnter, gocui.ModNone, submitAddPassword); err != nil {
+			log.Panicln(err)
+		}
+
+		if err := g.SetKeybinding(name, gocui.KeyEsc, gocui.ModNone, closeAddPassword); err != nil {
+			log.Panicln(err)
+		}
+	}
+
 	if err := g.MainLoop(); err != nil && !errors.Is(err, gocui.ErrQuit) {
 		log.Panicln(err)
 	}
@@ -95,6 +123,8 @@ func layout(g *gocui.Gui) error {
 		return passwordsLayout(g)
 	case GpgPassphraseView:
 		return gpgPassphraseLayout(g)
+	case AddPasswordView:
+		return addPasswordLayout(g)
 	default:
 		return nil
 	}
@@ -102,6 +132,15 @@ func layout(g *gocui.Gui) error {
 
 func quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
+}
+
+func clearScreen(g *gocui.Gui) error {
+	for _, v := range g.Views() {
+		if err := g.DeleteView(v.Name()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func changeLayout(g *gocui.Gui, v *gocui.View) error {
@@ -451,7 +490,8 @@ func handleCommand(g *gocui.Gui) error {
 
 	commandName := commands[selectedRow]
 
-	if commandName == "/gen" {
+	switch commandName {
+	case "/gen":
 		randomPassword, err := app.GenerateRandomPassword()
 		if err != nil {
 			showFeedback(g, "Error happened during generating random password")
@@ -460,7 +500,108 @@ func handleCommand(g *gocui.Gui) error {
 
 		app.CopyToClipboard(randomPassword)
 		showFeedback(g, "Generated password copied to clipboard!")
+	case "/add":
+		pushToViewStack(AddPasswordView)
 	}
 
+	return nil
+}
+
+func pushToViewStack(v string) {
+	clearScreen(gui)
+	viewStack = append(viewStack, v)
+	query = ""
+}
+
+func popViewStack() {
+	clearScreen(gui)
+	viewStack = viewStack[:len(viewStack)-1]
+	clearScreen(gui)
+}
+
+func addPasswordLayout(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	w := 60
+	h := 2
+	x0 := (maxX - w) / 2
+	y0 := (maxY - len(addViews)*(h+1)) / 2
+	x1 := x0 + w
+
+	for i, name := range addViews {
+		vy0 := y0 + i*(h+1)
+
+		v, err := g.SetView(name, x0, vy0, x1, vy0+h, 0)
+		if err != nil {
+			if !errors.Is(err, gocui.ErrUnknownView) {
+				return err
+			}
+
+			v.Editable = true
+			v.Wrap = false
+			v.Editor = gocui.EditorFunc(passphraseEditor)
+
+			if i > 0 {
+				v.Mask = '*'
+			}
+		}
+
+		v.Title = addTitles[i]
+	}
+
+	if err := renderFeedback(g, x0, y0, x1); err != nil {
+		return err
+	}
+
+	_, err := g.SetCurrentView(addViews[addFocus])
+	return err
+}
+
+func nextAddField(g *gocui.Gui, v *gocui.View) error {
+	addFocus = (addFocus + 1) % len(addViews)
+	return nil
+}
+
+func prevAddField(g *gocui.Gui, v *gocui.View) error {
+	addFocus = (addFocus - 1 + len(addViews)) % len(addViews)
+	return nil
+}
+
+func addFieldValue(g *gocui.Gui, name string) string {
+	v, err := g.View(name)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimRight(v.Buffer(), "\r\n")
+}
+
+func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
+	name := addFieldValue(g, AddNameView)
+	password := addFieldValue(g, AddPassView)
+	confirmation := addFieldValue(g, AddConfirmView)
+
+	if name == "" || password == "" {
+		showFeedback(g, "Password name and password can't be empty")
+		return nil
+	}
+
+	if password != confirmation {
+		showFeedback(g, "Passwords don't match")
+		return nil
+	}
+
+	if _, err := app.SavePassword(app.Credentials{Name: name, Password: password}); err != nil {
+		showFeedback(g, "Error happened while saving the password")
+		return nil
+	}
+
+	passwords = app.ReadPasswordsLookup()
+	showFeedback(g, fmt.Sprintf("Password for `%s` saved!", name))
+
+	return closeAddPassword(g, v)
+}
+
+func closeAddPassword(g *gocui.Gui, v *gocui.View) error {
+	addFocus = 0
+	popViewStack()
 	return nil
 }

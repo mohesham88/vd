@@ -26,7 +26,7 @@ func Run() {
 			return
 		}
 
-		success, err := savePassword(*obj)
+		success, err := SavePassword(*obj)
 		if err != nil {
 			return
 		}
