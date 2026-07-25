@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,10 +19,7 @@ var (
 )
 
 func PrintErr(args ...any) {
-	if NoTerminalPrompt {
-		return
-	}
-	fmt.Println(args...)
+	log.Println(args...)
 }
 
 func GenerateGPGKey(name, email, passphrase string) error {
@@ -127,9 +125,7 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 
 	if msg := probeErr.String(); strings.Contains(msg, "No secret key") ||
 		strings.Contains(msg, "no valid OpenPGP data") {
-		if !NoTerminalPrompt {
-			os.Stderr.Write([]byte(PrefixLines(msg)))
-		}
+		log.Println(msg)
 		return nil, fmt.Errorf("gpg Decrypt failed (wrong passphrase or no key)")
 	}
 

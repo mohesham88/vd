@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -47,13 +48,13 @@ func savePassword(credentials Credentials) (bool, error) {
 
 func GetPassword(credentialsName string) {
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
-		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
+		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		return
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error getting home directory:", err)
+		log.Println("Error getting home directory:", err)
 		return
 	}
 
@@ -61,45 +62,45 @@ func GetPassword(credentialsName string) {
 	filename := filepath.Join(dir, credentialsName)
 
 	if _, err := os.Stat(filename); err != nil {
-		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
+		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		UpdatePasswordsLookup(credentialsName, true)
 		return
 	}
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		fmt.Println("Error reading password file:", err)
+		log.Println("Error reading password file:", err)
 		return
 	}
 
 	decrypted, err := Decrypt(data)
 	if err != nil {
-		fmt.Println("Error decrypting password file:", err)
+		log.Println("Error decrypting password file:", err)
 		return
 	}
 
 	var creds Credentials
 	if err := json.Unmarshal(decrypted, &creds); err != nil {
-		fmt.Println("Error parsing password file:", err)
+		log.Println("Error parsing password file:", err)
 		return
 	}
 
 	if err := CopyToClipboard(creds.Password); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
-	fmt.Printf("Password for `%s` copied to clipboard\n", creds.Name)
+	log.Printf("Password for `%s` copied to clipboard", creds.Name)
 }
 
 func deletePassword(credentialsName string) {
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
-		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
+		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		return
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error getting home directory:", err)
+		log.Println("Error getting home directory:", err)
 		return
 	}
 
@@ -107,12 +108,12 @@ func deletePassword(credentialsName string) {
 	filename := filepath.Join(dir, credentialsName)
 
 	if _, err := os.Stat(filename); err != nil {
-		fmt.Printf("Error: password for %s doesn't exist\n", credentialsName)
+		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		UpdatePasswordsLookup(credentialsName, true)
 		return
 	}
 
-	fmt.Printf("Are you sure you want to delete the password for %s? (y/N): ", credentialsName)
+	log.Printf("Are you sure you want to delete the password for %s? (y/N): ", credentialsName)
 	var confirm string
 	fmt.Scanln(&confirm)
 	if confirm != "y" && confirm != "Y" {
@@ -120,18 +121,18 @@ func deletePassword(credentialsName string) {
 	}
 
 	if err := os.Remove(filename); err != nil {
-		fmt.Println("Error deleting password:", err)
+		log.Println("Error deleting password:", err)
 		return
 	}
 
 	UpdatePasswordsLookup(credentialsName, true)
 
-	fmt.Printf("Password for %s deleted\n", credentialsName)
+	log.Printf("Password for %s deleted", credentialsName)
 }
 
 func changePassword(targetPassword string) {
 	if !slices.Contains(ReadPasswordsLookup(), targetPassword) {
-		fmt.Printf("Error: password for %s doesn't exist\n", targetPassword)
+		log.Printf("Error: password for %s doesn't exist", targetPassword)
 		return
 	}
 
@@ -149,13 +150,13 @@ func changePassword(targetPassword string) {
 		return
 	}
 
-	fmt.Printf("Password for `%s` changed successfully\n", targetPassword)
+	log.Printf("Password for `%s` changed successfully", targetPassword)
 }
 
 func listCurrentPasswords() {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error getting home directory:", err)
+		log.Println("Error getting home directory:", err)
 		return
 	}
 
@@ -167,9 +168,9 @@ func listCurrentPasswords() {
 				UpdatePasswordsLookup(name, true)
 				continue
 			}
-			fmt.Println("Error checking password file:", err)
+			log.Println("Error checking password file:", err)
 			continue
 		}
-		fmt.Println(name)
+		log.Println(name)
 	}
 }

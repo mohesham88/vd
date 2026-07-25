@@ -2,7 +2,7 @@ package app
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -80,7 +80,7 @@ func UpdatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error getting home directory:", err)
+		log.Println("Error getting home directory:", err)
 		return
 	}
 
@@ -90,7 +90,7 @@ func UpdatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 	plaintext, err := os.ReadFile(lookupPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			fmt.Println("Error reading passwords_lookup:", err)
+			log.Println("Error reading passwords_lookup:", err)
 			return
 		}
 
@@ -101,23 +101,23 @@ func UpdatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 		lookup := map[string][]string{"current_passwords": {newPasswordName}}
 		data, err := json.Marshal(lookup)
 		if err != nil {
-			fmt.Println("Error creating lookup JSON:", err)
+			log.Println("Error creating lookup JSON:", err)
 			return
 		}
 
 		encrypted, err := Encrypt(data)
 		if err != nil {
-			fmt.Println("Error encrypting lookup:", err)
+			log.Println("Error encrypting lookup:", err)
 			return
 		}
 
 		if err := os.MkdirAll(vdDir, 0o700); err != nil {
-			fmt.Println("Error creating vd directory:", err)
+			log.Println("Error creating vd directory:", err)
 			return
 		}
 
 		if err := os.WriteFile(lookupPath, encrypted, 0o600); err != nil {
-			fmt.Println("Error writing passwords_lookup:", err)
+			log.Println("Error writing passwords_lookup:", err)
 			return
 		}
 
@@ -126,19 +126,19 @@ func UpdatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 
 	decrypted, err := Decrypt(plaintext)
 	if err != nil {
-		fmt.Println("Error decrypting passwords_lookup:", err)
+		log.Println("Error decrypting passwords_lookup:", err)
 		return
 	}
 
 	var lookup map[string][]string
 	if err := json.Unmarshal(decrypted, &lookup); err != nil {
-		fmt.Println("Error parsing passwords_lookup:", err)
+		log.Println("Error parsing passwords_lookup:", err)
 		return
 	}
 
 	if toBeDeletedFlag {
 		if !slices.Contains(lookup["current_passwords"], newPasswordName) {
-			fmt.Printf("Password %s not found in lookup\n", newPasswordName)
+			log.Printf("Password %s not found in lookup", newPasswordName)
 		}
 
 		lookup["current_passwords"] = slices.DeleteFunc(lookup["current_passwords"], func(name string) bool {
@@ -147,7 +147,7 @@ func UpdatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 
 	} else {
 		if slices.Contains(lookup["current_passwords"], newPasswordName) {
-			fmt.Printf("Password %s already exists\n", newPasswordName)
+			log.Printf("Password %s already exists", newPasswordName)
 			return
 		}
 
@@ -156,18 +156,18 @@ func UpdatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 
 	data, err := json.Marshal(lookup)
 	if err != nil {
-		fmt.Println("Error encoding lookup JSON:", err)
+		log.Println("Error encoding lookup JSON:", err)
 		return
 	}
 
 	encrypted, err := Encrypt(data)
 	if err != nil {
-		fmt.Println("Error encrypting lookup:", err)
+		log.Println("Error encrypting lookup:", err)
 		return
 	}
 
 	if err := os.WriteFile(lookupPath, encrypted, 0o600); err != nil {
-		fmt.Println("Error writing passwords_lookup:", err)
+		log.Println("Error writing passwords_lookup:", err)
 		return
 	}
 }
