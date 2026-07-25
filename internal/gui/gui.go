@@ -50,12 +50,6 @@ func Run() {
 	passwords = app.ReadPasswordsLookup()
 	locked := passwords == nil
 
-	viewStack = append(viewStack, PasswordsView)
-
-	if locked {
-		viewStack = append(viewStack, GpgPassphraseView)
-	}
-
 	g, err := gocui.NewGui(gocui.OutputNormal, true)
 	if err != nil {
 		log.Panicln(err)
@@ -63,6 +57,12 @@ func Run() {
 	defer g.Close()
 
 	gui = g
+
+	pushToViewStack(PasswordsView)
+
+	if locked {
+		pushToViewStack(GpgPassphraseView)
+	}
 
 	g.Cursor = true
 
@@ -483,7 +483,7 @@ func handleGetPassword(g *gocui.Gui) error {
 	passwordsTmp := app.ReadPasswordsLookup()
 
 	if passwordsTmp == nil {
-		viewStack = append(viewStack, GpgPassphraseView)
+		pushToViewStack(GpgPassphraseView)
 	}
 
 	app.GetPassword(passwordName)
