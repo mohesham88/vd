@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/awesome-gocui/gocui"
+	"github.com/sahilm/fuzzy"
 
 	"github.com/ahmedhosssam/vd/internal/app"
 )
@@ -20,15 +21,17 @@ var (
 	gg            bool
 	passphraseMsg string
 	viewStack     []string
+	passwords     []string
 	gui           *gocui.Gui
 	selectedRow   int
 	rowCount      int
+	query         string
 )
 
 func Run() {
 	app.NoTerminalPrompt = true
 
-	passwords := app.ReadPasswordsLookup()
+	passwords = app.ReadPasswordsLookup()
 	locked := passwords == nil
 
 	viewStack = append(viewStack, PasswordsView)
@@ -155,11 +158,17 @@ func passwordsSearchEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modi
 		}
 	}
 	gocui.DefaultEditor.Edit(v, key, ch, mod)
+
+	newQuery := strings.TrimRight(v.Buffer(), "\r\n")
+	if newQuery != query {
+		query = newQuery
+		selectedRow = 0
+	}
 }
 
 func unlock(g *gocui.Gui, v *gocui.View) error {
 	app.PassphraseCache = strings.TrimRight(v.Buffer(), "\r\n")
-	passwords := app.ReadPasswordsLookup()
+	passwords = app.ReadPasswordsLookup()
 
 	if passwords == nil {
 		app.PassphraseCache = ""
@@ -227,7 +236,7 @@ func prevRow(g *gocui.Gui, v *gocui.View) error {
 }
 
 func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
-	entries := []string{"sdfg", "sdefghs", "efijugh"}
+	entries := filterPasswords()
 
 	numRows := len(entries)
 	rowH := 2
@@ -253,7 +262,7 @@ func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
 		bv.Frame = false
 
 		if i == selectedRow {
-			bv.BgColor = gocui.ColorCyan
+			bv.BgColor = gocui.ColorMagenta
 		} else {
 			bv.BgColor = gocui.ColorWhite
 		}
@@ -263,5 +272,28 @@ func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
 		fmt.Fprint(bv, entries[i])
 	}
 
+	for i := numRows; ; i++ {
+		name := fmt.Sprintf("row%d", i)
+		if _, err := g.View(name); err != nil {
+			break
+		}
+		if err := g.DeleteView(name); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func filterPasswords() []string {
+	if query == "" {
+		return passwords
+	}
+
+	matches := fuzzy.Find(query, passwords)
+	entries := make([]string, len(matches))
+	for i, m := range matches {
+		entries[i] = m.Str
+	}
+	return entries
 }
