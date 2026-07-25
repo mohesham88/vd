@@ -72,6 +72,10 @@ func Run() {
 		log.Panicln(err)
 	}
 
+	if err := g.SetKeybinding(PasswordsView, gocui.KeyEnter, gocui.ModNone, handleGetPassword); err != nil {
+		log.Panicln(err)
+	}
+
 	if err := g.MainLoop(); err != nil && !errors.Is(err, gocui.ErrQuit) {
 		log.Panicln(err)
 	}
@@ -296,4 +300,20 @@ func filterPasswords() []string {
 		entries[i] = m.Str
 	}
 	return entries
+}
+
+func handleGetPassword(g *gocui.Gui, v *gocui.View) error {
+	entries := filterPasswords()
+
+	passwordName := entries[selectedRow]
+
+	passwordsTmp := app.ReadPasswordsLookup()
+
+	if passwordsTmp == nil {
+		viewStack = append(viewStack, GpgPassphraseView)
+		return nil
+	}
+
+	app.GetPassword(passwordName)
+	return nil
 }
