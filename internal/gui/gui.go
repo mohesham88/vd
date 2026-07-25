@@ -195,5 +195,39 @@ func passwordsLayout(g *gocui.Gui) error {
 		}
 	}
 
+	if err := renderRows(g, x0, y1+1, x1); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
+	entries := []string{"sdfg", "sdefghs", "efijugh"}
+
+	numRows := len(entries)
+	rowH := 2
+
+	for i := range numRows {
+		by0 := y1 + i*(rowH)
+		by1 := by0 + rowH
+
+		bv, err := g.SetView(fmt.Sprintf("row%d", i), x0, by0, x1, by1, 0)
+		isNew := errors.Is(err, gocui.ErrUnknownView)
+		if err != nil && !isNew {
+			return err
+		}
+		bv.Wrap = false
+		bv.Frame = false
+
+		if isNew {
+			bv.BgColor = gocui.ColorWhite
+			bv.FgColor = gocui.ColorBlack
+		}
+
+		bv.Clear()
+		fmt.Fprint(bv, entries[i])
+	}
+
 	return nil
 }
