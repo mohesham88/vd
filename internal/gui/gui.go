@@ -19,6 +19,8 @@ const (
 	FeedbackView      = "feedbackview"
 )
 
+var Commands = []string{"/add", "/delete", "/change", "/gen"}
+
 var (
 	gg            bool
 	passphraseMsg string
@@ -285,7 +287,13 @@ func prevRow(g *gocui.Gui, v *gocui.View) error {
 }
 
 func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
-	entries := filterPasswords()
+	var entries []string
+
+	if strings.HasPrefix(query, "/") {
+		entries = filterCommands()
+	} else {
+		entries = filterPasswords()
+	}
 
 	numRows := len(entries)
 	rowH := 2
@@ -334,6 +342,17 @@ func renderRows(g *gocui.Gui, x0, y1, x1 int) error {
 	return nil
 }
 
+func filterCommands() []string {
+	matches := fuzzy.Find(query, Commands)
+	entries := make([]string, len(matches))
+
+	for i, m := range matches {
+		entries[i] = m.Str
+	}
+
+	return entries
+}
+
 func filterPasswords() []string {
 	if query == "" {
 		return passwords
@@ -341,9 +360,11 @@ func filterPasswords() []string {
 
 	matches := fuzzy.Find(query, passwords)
 	entries := make([]string, len(matches))
+
 	for i, m := range matches {
 		entries[i] = m.Str
 	}
+
 	return entries
 }
 
