@@ -336,15 +336,25 @@ func prevRow(g *gocui.Gui, v *gocui.View) error {
 }
 
 func moveDown() error {
+	if rowCount == 0 {
+		return nil
+	}
 	if selectedRow < rowCount-1 {
 		selectedRow++
+	} else {
+		selectedRow = 0
 	}
 	return nil
 }
 
 func moveUp() error {
+	if rowCount == 0 {
+		return nil
+	}
 	if selectedRow > 0 {
 		selectedRow--
+	} else {
+		selectedRow = rowCount - 1
 	}
 	return nil
 }
