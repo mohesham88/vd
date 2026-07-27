@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -17,7 +16,12 @@ func createJSONObj(data Credentials) ([]byte, error) {
 	return jsonObj, nil
 }
 
-func savePassword(credentials Credentials) (bool, error) {
+func SavePassword(credentials Credentials) (bool, error) {
+	if slices.Contains(ReadPasswordsLookup(), credentials.Name) {
+		log.Printf("Error: password for %s already exists", credentials.Name)
+		return false, nil
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return false, err
@@ -92,61 +96,77 @@ func GetPassword(credentialsName string) {
 	log.Printf("Password for `%s` copied to clipboard", creds.Name)
 }
 
-func deletePassword(credentialsName string) {
+func DeletePassword(credentialsName string) (bool, error) {
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
-		log.Printf("Error: password for %s doesn't exist", credentialsName)
-		return
+		return false, nil
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		log.Println("Error getting home directory:", err)
-		return
+		return false, err
 	}
 
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
 	filename := filepath.Join(dir, credentialsName)
 
 	if _, err := os.Stat(filename); err != nil {
-		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		UpdatePasswordsLookup(credentialsName, true)
-		return
-	}
-
-	log.Printf("Are you sure you want to delete the password for %s? (y/N): ", credentialsName)
-	var confirm string
-	fmt.Scanln(&confirm)
-	if confirm != "y" && confirm != "Y" {
-		return
+		return false, nil
 	}
 
 	if err := os.Remove(filename); err != nil {
-		log.Println("Error deleting password:", err)
-		return
+		return false, err
 	}
 
 	UpdatePasswordsLookup(credentialsName, true)
 
-	log.Printf("Password for %s deleted", credentialsName)
+	return true, nil
+}
+
+func ChangePassword(credentialsName, newPassword string) (bool, error) {
+	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
+		return false, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false, err
+	}
+
+	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
+	filename := filepath.Join(dir, credentialsName)
+
+	data, err := createJSONObj(Credentials{Name: credentialsName, Password: newPassword})
+	if err != nil {
+		return false, err
+	}
+
+	encrypted, err := Encrypt(data)
+	if err != nil {
+		return false, err
+	}
+
+	if err := os.WriteFile(filename, encrypted, 0o600); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func changePassword(targetPassword string) {
-	if !slices.Contains(ReadPasswordsLookup(), targetPassword) {
-		log.Printf("Error: password for %s doesn't exist", targetPassword)
-		return
-	}
-
 	newPassword, err := ReadPassword(true)
 	if err != nil {
 		return
 	}
 
-	var creds Credentials
-	creds.Name = targetPassword
-	creds.Password = newPassword
-
-	_, err = savePassword(creds)
+	success, err := ChangePassword(targetPassword, newPassword)
 	if err != nil {
+		log.Println("Error changing password:", err)
+		return
+	}
+
+	if !success {
+		log.Printf("Error: password for %s doesn't exist", targetPassword)
 		return
 	}
 
