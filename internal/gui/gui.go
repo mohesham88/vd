@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,6 +22,8 @@ const (
 	AddPassView       = "addpassview"
 	AddConfirmView    = "addconfirmview"
 	FeedbackView      = "feedbackview"
+	DeleteConfirmView = "deleteconfirmview"
+	DeleteRowView     = "deleterowview"
 )
 
 var (
@@ -42,6 +45,8 @@ var (
 	query         string
 	feedbackMsg   string
 	feedbackID    int
+	deleteMode    bool
+	deleteTarget  string
 )
 
 func Run() {
@@ -92,6 +97,18 @@ func Run() {
 		log.Panicln(err)
 	}
 
+	if err := g.SetKeybinding(PasswordsView, gocui.KeyEsc, gocui.ModNone, cancelDeleteMode); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(DeleteConfirmView, gocui.KeyEnter, gocui.ModNone, confirmDelete); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(DeleteConfirmView, gocui.KeyEsc, gocui.ModNone, cancelDelete); err != nil {
+		log.Panicln(err)
+	}
+
 	for _, name := range addViews {
 		if err := g.SetKeybinding(name, gocui.KeyTab, gocui.ModNone, nextAddField); err != nil {
 			log.Panicln(err)
@@ -125,6 +142,8 @@ func layout(g *gocui.Gui) error {
 		return gpgPassphraseLayout(g)
 	case AddPasswordView:
 		return addPasswordLayout(g)
+	case DeleteConfirmView:
+		return deleteConfirmLayout(g)
 	default:
 		return nil
 	}
@@ -134,9 +153,17 @@ func quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
 }
 
-func clearScreen(g *gocui.Gui) error {
+func clearScreen(g *gocui.Gui, keep ...string) error {
+	var names []string
 	for _, v := range g.Views() {
-		if err := g.DeleteView(v.Name()); err != nil {
+		names = append(names, v.Name())
+	}
+
+	for _, name := range names {
+		if slices.Contains(keep, name) {
+			continue
+		}
+		if err := g.DeleteView(name); err != nil {
 			return err
 		}
 	}
@@ -253,6 +280,8 @@ func passwordsLayout(g *gocui.Gui) error {
 	x1 := x0 + w
 	y1 := y0 + h
 
+	g.Cursor = true
+
 	v, err := g.SetView(PasswordsView, x0, y0, x1, y1, 0)
 	if err != nil {
 		if !errors.Is(err, gocui.ErrUnknownView) {
@@ -360,7 +389,7 @@ func moveUp() error {
 }
 
 func isCommandsQuery() bool {
-	return strings.HasPrefix(query, "/")
+	return !deleteMode && strings.HasPrefix(query, "/")
 }
 
 func renderRows(g *gocui.Gui) error {
@@ -468,9 +497,12 @@ func filterPasswords() []string {
 
 func handleSearchBarEnter(g *gocui.Gui, v *gocui.View) error {
 	var result error
-	if isCommandsQuery() {
+	switch {
+	case isCommandsQuery():
 		result = handleCommand(g)
-	} else {
+	case deleteMode:
+		result = handleDeletePassword(g)
+	default:
 		result = handleGetPassword(g)
 	}
 
@@ -518,9 +550,112 @@ func handleCommand(g *gocui.Gui) error {
 		showFeedback(g, "Generated password copied to clipboard!")
 	case "/add":
 		pushToViewStack(AddPasswordView)
+	case "/delete":
+		deleteMode = true
+		selectedRow = 0
+		showFeedback(g, "Choose the password you want to delete")
 	}
 
 	return nil
+}
+
+func handleDeletePassword(g *gocui.Gui) error {
+	entries := filterPasswords()
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	deleteTarget = entries[selectedRow]
+	pushToViewStack(DeleteConfirmView)
+
+	return nil
+}
+
+func deleteConfirmLayout(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	w := 60
+	h := 2
+	x0 := (maxX - w) / 2
+	y0 := (maxY - h) / 2
+	x1 := x0 + w
+	y1 := y0 + h
+
+	g.Cursor = false
+
+	if err := clearScreen(g, DeleteConfirmView, DeleteRowView); err != nil {
+		return err
+	}
+
+	mv, err := g.SetView(DeleteConfirmView, x0, y0, x1, y1, 0)
+	if err != nil {
+		if !errors.Is(err, gocui.ErrUnknownView) {
+			return err
+		}
+
+		if _, err := g.SetCurrentView(DeleteConfirmView); err != nil {
+			return err
+		}
+	}
+
+	mv.Frame = false
+	mv.FgColor = gocui.ColorMagenta
+	mv.Clear()
+	fmt.Fprintf(mv, "Are you sure you want to delete `%s`?", deleteTarget)
+
+	rv, err := g.SetView(DeleteRowView, x0, y1, x1, y1+2, 0)
+	if err != nil && !errors.Is(err, gocui.ErrUnknownView) {
+		return err
+	}
+
+	rv.Frame = false
+	rv.BgColor = gocui.ColorMagenta
+	rv.FgColor = gocui.ColorBlack
+	rv.Clear()
+	fmt.Fprint(rv, deleteTarget)
+
+	return nil
+}
+
+func confirmDelete(g *gocui.Gui, v *gocui.View) error {
+	name := deleteTarget
+	success, err := app.DeletePassword(name)
+
+	resetDeleteMode()
+	popViewStack()
+
+	if err != nil || !success {
+		showFeedback(g, fmt.Sprintf("Error happened while deleting `%s`", name))
+		return nil
+	}
+
+	passwords = app.ReadPasswordsLookup()
+	showFeedback(g, fmt.Sprintf("Password for `%s` deleted!", name))
+
+	return nil
+}
+
+func cancelDelete(g *gocui.Gui, v *gocui.View) error {
+	resetDeleteMode()
+	popViewStack()
+	return nil
+}
+
+func cancelDeleteMode(g *gocui.Gui, v *gocui.View) error {
+	if !deleteMode {
+		return nil
+	}
+
+	resetDeleteMode()
+	showFeedback(g, "Deletion cancelled")
+
+	return nil
+}
+
+func resetDeleteMode() {
+	deleteMode = false
+	deleteTarget = ""
+	selectedRow = 0
 }
 
 func pushToViewStack(v string) {

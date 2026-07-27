@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -97,42 +96,31 @@ func GetPassword(credentialsName string) {
 	log.Printf("Password for `%s` copied to clipboard", creds.Name)
 }
 
-func deletePassword(credentialsName string) {
+func DeletePassword(credentialsName string) (bool, error) {
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
-		log.Printf("Error: password for %s doesn't exist", credentialsName)
-		return
+		return false, nil
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		log.Println("Error getting home directory:", err)
-		return
+		return false, err
 	}
 
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
 	filename := filepath.Join(dir, credentialsName)
 
 	if _, err := os.Stat(filename); err != nil {
-		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		UpdatePasswordsLookup(credentialsName, true)
-		return
-	}
-
-	log.Printf("Are you sure you want to delete the password for %s? (y/N): ", credentialsName)
-	var confirm string
-	fmt.Scanln(&confirm)
-	if confirm != "y" && confirm != "Y" {
-		return
+		return false, nil
 	}
 
 	if err := os.Remove(filename); err != nil {
-		log.Println("Error deleting password:", err)
-		return
+		return false, err
 	}
 
 	UpdatePasswordsLookup(credentialsName, true)
 
-	log.Printf("Password for %s deleted", credentialsName)
+	return true, nil
 }
 
 func changePassword(targetPassword string) {

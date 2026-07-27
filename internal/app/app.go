@@ -45,7 +45,18 @@ func Run() {
 			log.Println("Usage: vd delete password_name")
 			return
 		}
-		deletePassword(os.Args[2])
+		success, err := DeletePassword(os.Args[2])
+		if err != nil {
+			log.Println("Error deleting password:", err)
+			return
+		}
+
+		if !success {
+			log.Printf("Error: password for %s doesn't exist", os.Args[2])
+			return
+		}
+
+		log.Printf("Password for %s deleted", os.Args[2])
 	case "register":
 		register()
 	case "ls":
