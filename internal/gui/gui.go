@@ -595,7 +595,13 @@ func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	if _, err := app.SavePassword(app.Credentials{Name: name, Password: password}); err != nil {
+	success, err := app.SavePassword(app.Credentials{Name: name, Password: password})
+	if !success {
+		showFeedback(g, fmt.Sprintf("Password with name `%s` already exists", name))
+		return nil
+	}
+
+	if err != nil {
 		showFeedback(g, "Error happened while saving the password")
 		return nil
 	}

@@ -18,6 +18,11 @@ func createJSONObj(data Credentials) ([]byte, error) {
 }
 
 func SavePassword(credentials Credentials) (bool, error) {
+	if slices.Contains(ReadPasswordsLookup(), credentials.Name) {
+		log.Printf("Error: password for %s already exists", credentials.Name)
+		return false, nil
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return false, err
