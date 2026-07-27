@@ -15,16 +15,15 @@ import (
 )
 
 const (
-	GpgPassphraseView = "gpgpassphraseview"
-	PasswordsView     = "passwordsview"
-	AddPasswordView   = "addpasswordview"
-	AddNameView       = "addnameview"
-	AddPassView       = "addpassview"
-	AddConfirmView    = "addconfirmview"
-	FeedbackView      = "feedbackview"
-	DeleteConfirmView = "deleteconfirmview"
-	DeleteRowView     = "deleterowview"
-
+	GpgPassphraseView  = "gpgpassphraseview"
+	PasswordsView      = "passwordsview"
+	AddPasswordView    = "addpasswordview"
+	AddNameView        = "addnameview"
+	AddPassView        = "addpassview"
+	AddConfirmView     = "addconfirmview"
+	FeedbackView       = "feedbackview"
+	DeleteConfirmView  = "deleteconfirmview"
+	DeleteRowView      = "deleterowview"
 	ChangePasswordView = "changepasswordview"
 )
 
