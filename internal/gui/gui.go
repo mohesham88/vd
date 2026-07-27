@@ -24,12 +24,16 @@ const (
 	FeedbackView      = "feedbackview"
 	DeleteConfirmView = "deleteconfirmview"
 	DeleteRowView     = "deleterowview"
+
+	ChangePasswordView = "changepasswordview"
 )
 
 var (
-	addViews  = []string{AddNameView, AddPassView, AddConfirmView}
-	addTitles = []string{" Password Name ", " Password ", " Password Confirmation "}
-	addFocus  int
+	addViews     = []string{AddNameView, AddPassView, AddConfirmView}
+	addTitles    = []string{" Password Name ", " Password ", " Password Confirmation "}
+	changeViews  = []string{AddPassView, AddConfirmView}
+	changeTitles = []string{" New Password ", " New Password Confirmation "}
+	addFocus     int
 )
 
 var Commands = []string{"/add", "/delete", "/change", "/gen"}
@@ -47,6 +51,8 @@ var (
 	feedbackID    int
 	deleteMode    bool
 	deleteTarget  string
+	changeMode    bool
+	changeTarget  string
 )
 
 func Run() {
@@ -97,7 +103,7 @@ func Run() {
 		log.Panicln(err)
 	}
 
-	if err := g.SetKeybinding(PasswordsView, gocui.KeyEsc, gocui.ModNone, cancelDeleteMode); err != nil {
+	if err := g.SetKeybinding(PasswordsView, gocui.KeyEsc, gocui.ModNone, cancelSelectionMode); err != nil {
 		log.Panicln(err)
 	}
 
@@ -144,6 +150,8 @@ func layout(g *gocui.Gui) error {
 		return addPasswordLayout(g)
 	case DeleteConfirmView:
 		return deleteConfirmLayout(g)
+	case ChangePasswordView:
+		return addPasswordLayout(g)
 	default:
 		return nil
 	}
@@ -389,7 +397,7 @@ func moveUp() error {
 }
 
 func isCommandsQuery() bool {
-	return !deleteMode && strings.HasPrefix(query, "/")
+	return !deleteMode && !changeMode && strings.HasPrefix(query, "/")
 }
 
 func renderRows(g *gocui.Gui) error {
@@ -502,6 +510,8 @@ func handleSearchBarEnter(g *gocui.Gui, v *gocui.View) error {
 		result = handleCommand(g)
 	case deleteMode:
 		result = handleDeletePassword(g)
+	case changeMode:
+		result = handleChangePassword(g)
 	default:
 		result = handleGetPassword(g)
 	}
@@ -554,7 +564,26 @@ func handleCommand(g *gocui.Gui) error {
 		deleteMode = true
 		selectedRow = 0
 		showFeedback(g, "Choose the password you want to delete")
+	case "/change":
+		changeMode = true
+		selectedRow = 0
+		showFeedback(g, "Choose the password you want to change")
 	}
+
+	return nil
+}
+
+func handleChangePassword(g *gocui.Gui) error {
+	entries := filterPasswords()
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	changeTarget = entries[selectedRow]
+	addFocus = 0
+	pushToViewStack(ChangePasswordView)
+	showFeedback(g, fmt.Sprintf("Changing the password for `%s`", changeTarget))
 
 	return nil
 }
@@ -641,13 +670,15 @@ func cancelDelete(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-func cancelDeleteMode(g *gocui.Gui, v *gocui.View) error {
-	if !deleteMode {
-		return nil
+func cancelSelectionMode(g *gocui.Gui, v *gocui.View) error {
+	switch {
+	case deleteMode:
+		resetDeleteMode()
+		showFeedback(g, "Deletion cancelled")
+	case changeMode:
+		resetChangeMode()
+		showFeedback(g, "Change cancelled")
 	}
-
-	resetDeleteMode()
-	showFeedback(g, "Deletion cancelled")
 
 	return nil
 }
@@ -670,15 +701,26 @@ func popViewStack() {
 	clearScreen(gui)
 }
 
+func activeAddFields() ([]string, []string) {
+	if changeMode {
+		return changeViews, changeTitles
+	}
+	return addViews, addTitles
+}
+
 func addPasswordLayout(g *gocui.Gui) error {
+	views, titles := activeAddFields()
+
 	maxX, maxY := g.Size()
 	w := 60
 	h := 2
 	x0 := (maxX - w) / 2
-	y0 := (maxY - len(addViews)*(h+1)) / 2
+	y0 := (maxY - len(views)*(h+1)) / 2
 	x1 := x0 + w
 
-	for i, name := range addViews {
+	g.Cursor = true
+
+	for i, name := range views {
 		vy0 := y0 + i*(h+1)
 
 		v, err := g.SetView(name, x0, vy0, x1, vy0+h, 0)
@@ -691,29 +733,31 @@ func addPasswordLayout(g *gocui.Gui) error {
 			v.Wrap = false
 			v.Editor = gocui.EditorFunc(passphraseEditor)
 
-			if i > 0 {
+			if name != AddNameView {
 				v.Mask = '*'
 			}
 		}
 
-		v.Title = addTitles[i]
+		v.Title = titles[i]
 	}
 
 	if err := renderFeedback(g, x0, y0, x1); err != nil {
 		return err
 	}
 
-	_, err := g.SetCurrentView(addViews[addFocus])
+	_, err := g.SetCurrentView(views[addFocus])
 	return err
 }
 
 func nextAddField(g *gocui.Gui, v *gocui.View) error {
-	addFocus = (addFocus + 1) % len(addViews)
+	views, _ := activeAddFields()
+	addFocus = (addFocus + 1) % len(views)
 	return nil
 }
 
 func prevAddField(g *gocui.Gui, v *gocui.View) error {
-	addFocus = (addFocus - 1 + len(addViews)) % len(addViews)
+	views, _ := activeAddFields()
+	addFocus = (addFocus - 1 + len(views)) % len(views)
 	return nil
 }
 
@@ -726,6 +770,10 @@ func addFieldValue(g *gocui.Gui, name string) string {
 }
 
 func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
+	if changeMode {
+		return submitChangePassword(g, v)
+	}
+
 	name := addFieldValue(g, AddNameView)
 	password := addFieldValue(g, AddPassView)
 	confirmation := addFieldValue(g, AddConfirmView)
@@ -757,8 +805,41 @@ func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
 	return closeAddPassword(g, v)
 }
 
+func submitChangePassword(g *gocui.Gui, v *gocui.View) error {
+	name := changeTarget
+	password := addFieldValue(g, AddPassView)
+	confirmation := addFieldValue(g, AddConfirmView)
+
+	if password == "" {
+		showFeedback(g, "Password can't be empty")
+		return nil
+	}
+
+	if password != confirmation {
+		showFeedback(g, "Passwords don't match")
+		return nil
+	}
+
+	success, err := app.ChangePassword(name, password)
+	if err != nil || !success {
+		showFeedback(g, fmt.Sprintf("Error happened while changing `%s`", name))
+		return closeAddPassword(g, v)
+	}
+
+	showFeedback(g, fmt.Sprintf("Password for `%s` changed!", name))
+
+	return closeAddPassword(g, v)
+}
+
 func closeAddPassword(g *gocui.Gui, v *gocui.View) error {
 	addFocus = 0
+	resetChangeMode()
 	popViewStack()
 	return nil
+}
+
+func resetChangeMode() {
+	changeMode = false
+	changeTarget = ""
+	selectedRow = 0
 }

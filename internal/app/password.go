@@ -123,23 +123,50 @@ func DeletePassword(credentialsName string) (bool, error) {
 	return true, nil
 }
 
-func changePassword(targetPassword string) {
-	if !slices.Contains(ReadPasswordsLookup(), targetPassword) {
-		log.Printf("Error: password for %s doesn't exist", targetPassword)
-		return
+func ChangePassword(credentialsName, newPassword string) (bool, error) {
+	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
+		return false, nil
 	}
 
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false, err
+	}
+
+	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
+	filename := filepath.Join(dir, credentialsName)
+
+	data, err := createJSONObj(Credentials{Name: credentialsName, Password: newPassword})
+	if err != nil {
+		return false, err
+	}
+
+	encrypted, err := Encrypt(data)
+	if err != nil {
+		return false, err
+	}
+
+	if err := os.WriteFile(filename, encrypted, 0o600); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func changePassword(targetPassword string) {
 	newPassword, err := ReadPassword(true)
 	if err != nil {
 		return
 	}
 
-	var creds Credentials
-	creds.Name = targetPassword
-	creds.Password = newPassword
-
-	_, err = SavePassword(creds)
+	success, err := ChangePassword(targetPassword, newPassword)
 	if err != nil {
+		log.Println("Error changing password:", err)
+		return
+	}
+
+	if !success {
+		log.Printf("Error: password for %s doesn't exist", targetPassword)
 		return
 	}
 
