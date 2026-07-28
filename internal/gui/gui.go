@@ -537,7 +537,11 @@ func handleGetPassword(g *gocui.Gui) error {
 		pushToViewStack(GpgPassphraseView)
 	}
 
-	app.GetPassword(passwordName)
+	if err := app.GetPassword(passwordName); err != nil {
+		showFeedback(g, fmt.Sprintf("Error: %v", err))
+		return nil
+	}
+
 	showFeedback(g, fmt.Sprintf("Password for `%s` copied to clipboard!", passwordName))
 	return nil
 }
@@ -787,14 +791,8 @@ func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	success, err := app.SavePassword(app.Credentials{Name: name, Password: password})
-	if !success {
-		showFeedback(g, fmt.Sprintf("Password with name `%s` already exists", name))
-		return nil
-	}
-
-	if err != nil {
-		showFeedback(g, "Error happened while saving the password")
+	if err := app.SavePassword(app.Credentials{Name: name, Password: password}); err != nil {
+		showFeedback(g, err.Error())
 		return nil
 	}
 

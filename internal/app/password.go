@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -16,50 +17,60 @@ func createJSONObj(data Credentials) ([]byte, error) {
 	return jsonObj, nil
 }
 
-func SavePassword(credentials Credentials) (bool, error) {
+func SavePassword(credentials Credentials) error {
 	if slices.Contains(ReadPasswordsLookup(), credentials.Name) {
 		log.Printf("Error: password for %s already exists", credentials.Name)
-		return false, nil
+		return fmt.Errorf("error: password for %s already exists", credentials.Name)
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return false, err
+		log.Println("Error getting home directory:", err)
+		return fmt.Errorf("error getting home directory: %w", err)
 	}
+
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return false, err
+		log.Println("Error creating passwords directory:", err)
+		return fmt.Errorf("error creating passwords directory: %w", err)
 	}
 
 	filename := filepath.Join(dir, credentials.Name)
 
 	data, err := createJSONObj(credentials)
 	if err != nil {
-		return false, err
+		log.Println("Error encoding password JSON:", err)
+		return fmt.Errorf("error encoding password JSON: %w", err)
 	}
 
 	encrypted, err := Encrypt(data)
 	if err != nil {
-		return false, err
+		log.Println("Error encrypting password file:", err)
+		return fmt.Errorf("error encrypting password file: %w", err)
 	}
 
-	os.WriteFile(filename, encrypted, 0o600)
+	if err := os.WriteFile(filename, encrypted, 0o600); err != nil {
+		log.Println("Error writing password file:", err)
+		return fmt.Errorf("error writing password file: %w", err)
+	}
 
 	UpdatePasswordsLookup(credentials.Name)
 
-	return true, nil
+	log.Printf("Password for `%s` added successfully", credentials.Name)
+	return nil
 }
 
-func GetPassword(credentialsName string) {
+func GetPassword(credentialsName string) error {
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
 		log.Printf("Error: password for %s doesn't exist", credentialsName)
-		return
+		err := fmt.Errorf("Error: password for %s doesn't exist", credentialsName)
+		return err
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
 		log.Println("Error getting home directory:", err)
-		return
+		return fmt.Errorf("Error getting home directory: %w", err)
 	}
 
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
@@ -68,32 +79,34 @@ func GetPassword(credentialsName string) {
 	if _, err := os.Stat(filename); err != nil {
 		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		UpdatePasswordsLookup(credentialsName, true)
-		return
+		return fmt.Errorf("Error: password for %s doesn't exist", credentialsName)
 	}
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		log.Println("Error reading password file:", err)
-		return
+		return fmt.Errorf("Error reading password file: %w", err)
 	}
 
 	decrypted, err := Decrypt(data)
 	if err != nil {
 		log.Println("Error decrypting password file:", err)
-		return
+		return fmt.Errorf("Error decrypting password file: %w", err)
 	}
 
 	var creds Credentials
 	if err := json.Unmarshal(decrypted, &creds); err != nil {
 		log.Println("Error parsing password file:", err)
-		return
+		return fmt.Errorf("Error parsing password file: %w", err)
 	}
 
 	if err := CopyToClipboard(creds.Password); err != nil {
 		log.Println(err)
-		return
+		return err
 	}
+
 	log.Printf("Password for `%s` copied to clipboard", creds.Name)
+	return nil
 }
 
 func DeletePassword(credentialsName string) (bool, error) {
@@ -153,30 +166,37 @@ func ChangePassword(credentialsName, newPassword string) (bool, error) {
 	return true, nil
 }
 
-func changePassword(targetPassword string) {
+func changePassword(targetPassword string) error {
+	if !slices.Contains(ReadPasswordsLookup(), targetPassword) {
+		log.Printf("Error: password for %s doesn't exist", targetPassword)
+		return fmt.Errorf("error: password for %s doesn't exist", targetPassword)
+	}
+
 	newPassword, err := ReadPassword(true)
 	if err != nil {
-		return
+		log.Println("Error reading password:", err)
+		return fmt.Errorf("error reading password: %w", err)
 	}
 
 	success, err := ChangePassword(targetPassword, newPassword)
 	if err != nil {
 		log.Println("Error changing password:", err)
-		return
+		return fmt.Errorf("error changing password: %w", err)
 	}
 
 	if !success {
 		log.Printf("Error: password for %s doesn't exist", targetPassword)
-		return
+		return fmt.Errorf("error: password for %s doesn't exist", targetPassword)
 	}
 
 	log.Printf("Password for `%s` changed successfully", targetPassword)
+	return nil
 }
 
 func listCurrentPasswords() {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		log.Println("Error getting home directory:", err)
+		fmt.Println("Error getting home directory:", err)
 		return
 	}
 
@@ -188,9 +208,9 @@ func listCurrentPasswords() {
 				UpdatePasswordsLookup(name, true)
 				continue
 			}
-			log.Println("Error checking password file:", err)
+			fmt.Println("Error checking password file:", err)
 			continue
 		}
-		log.Println(name)
+		fmt.Println(name)
 	}
 }
