@@ -25,7 +25,17 @@ const (
 	DeleteConfirmView  = "deleteconfirmview"
 	DeleteRowView      = "deleterowview"
 	ChangePasswordView = "changepasswordview"
+	BannerView         = "bannerview"
 )
+
+var banner = []string{
+	`__      _______  `,
+	`\ \    / /  __ \ `,
+	` \ \  / /| |  | |`,
+	`  \ \/ / | |  | |`,
+	`   \  /  | |__| |`,
+	`    \/   |_____/ `,
+}
 
 var (
 	addViews     = []string{AddNameView, AddPassView, AddConfirmView}
@@ -221,7 +231,8 @@ func gpgPassphraseLayout(g *gocui.Gui) error {
 	if passphraseMsg != "" {
 		v.Title = fmt.Sprintf(" %s ", passphraseMsg)
 	}
-	return nil
+
+	return renderBanner(g, y0)
 }
 
 func passphraseEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
@@ -313,6 +324,10 @@ func passwordsLayout(g *gocui.Gui) error {
 		}
 	}
 
+	if err := renderBanner(g, y0); err != nil {
+		return err
+	}
+
 	if err := renderFeedback(g, x0, y0, x1); err != nil {
 		return err
 	}
@@ -320,6 +335,26 @@ func passwordsLayout(g *gocui.Gui) error {
 	if err := renderRows(g); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func renderBanner(g *gocui.Gui, y0 int) error {
+	maxX, _ := g.Size()
+	w := len(banner[0])
+	x0 := (maxX - w) / 2
+	by1 := y0 - 7
+	by0 := by1 - len(banner) - 1
+
+	v, err := g.SetView(BannerView, x0, by0, x0+w+1, by1, 0)
+	if err != nil && !errors.Is(err, gocui.ErrUnknownView) {
+		return err
+	}
+
+	v.Frame = false
+	v.FgColor = gocui.ColorMagenta
+	v.Clear()
+	fmt.Fprint(v, strings.Join(banner, "\n"))
 
 	return nil
 }
