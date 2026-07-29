@@ -72,6 +72,97 @@ func ReadPasswordsLookup() []string {
 	return lookup["current_passwords"]
 }
 
+func ReadOTPLookup() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		PrintErr("Error getting home directory:", err)
+		return nil
+	}
+
+	data, err := os.ReadFile(filepath.Join(home, ".local", "share", "vd", "passwords_lookup"))
+	if err != nil {
+		return nil
+	}
+
+	decrypted, err := Decrypt(data)
+	if err != nil {
+		PrintErr("Error decrypting passwords_lookup:", err)
+		return nil
+	}
+
+	var lookup map[string][]string
+	if err := json.Unmarshal(decrypted, &lookup); err != nil {
+		PrintErr("Error parsing passwords_lookup:", err)
+		return nil
+	}
+
+	return lookup["otp_passwords"]
+}
+
+func IsOTP(name string) bool {
+	return slices.Contains(ReadOTPLookup(), name)
+}
+
+func UpdateOTPLookup(name string, toBeDeleted ...bool) {
+	toBeDeletedFlag := false
+	if len(toBeDeleted) > 0 {
+		toBeDeletedFlag = toBeDeleted[0]
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Println("Error getting home directory:", err)
+		return
+	}
+
+	lookupPath := filepath.Join(home, ".local", "share", "vd", "passwords_lookup")
+
+	data, err := os.ReadFile(lookupPath)
+	if err != nil {
+		log.Println("Error reading passwords_lookup:", err)
+		return
+	}
+
+	decrypted, err := Decrypt(data)
+	if err != nil {
+		log.Println("Error decrypting passwords_lookup:", err)
+		return
+	}
+
+	var lookup map[string][]string
+	if err := json.Unmarshal(decrypted, &lookup); err != nil {
+		log.Println("Error parsing passwords_lookup:", err)
+		return
+	}
+
+	if toBeDeletedFlag {
+		lookup["otp_passwords"] = slices.DeleteFunc(lookup["otp_passwords"], func(n string) bool {
+			return n == name
+		})
+	} else {
+		if slices.Contains(lookup["otp_passwords"], name) {
+			return
+		}
+		lookup["otp_passwords"] = append(lookup["otp_passwords"], name)
+	}
+
+	updated, err := json.Marshal(lookup)
+	if err != nil {
+		log.Println("Error encoding lookup JSON:", err)
+		return
+	}
+
+	encrypted, err := Encrypt(updated)
+	if err != nil {
+		log.Println("Error encrypting lookup:", err)
+		return
+	}
+
+	if err := os.WriteFile(lookupPath, encrypted, 0o600); err != nil {
+		log.Println("Error writing passwords_lookup:", err)
+	}
+}
+
 func UpdatePasswordsLookup(newPasswordName string, toBeDeleted ...bool) {
 	toBeDeletedFlag := false
 	if len(toBeDeleted) > 0 {
