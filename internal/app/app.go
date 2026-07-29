@@ -16,6 +16,7 @@ func Run() int {
 		fmt.Println("  get      Copy a password to clipboard")
 		fmt.Println("  delete   Delete a stored password")
 		fmt.Println("  change   Change a stored password")
+		fmt.Println("  otp      Add an OTP or copy its code [add|get otp_name]")
 		fmt.Println("  register Register a new GPG key")
 		fmt.Println("  ls       List stored passwords")
 		fmt.Println("  gen      Generate a random password to clipboard")
@@ -88,6 +89,60 @@ func Run() int {
 		}
 
 		fmt.Printf("Password for %s deleted\n", os.Args[2])
+	case "otp":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: vd otp add|get")
+			return 1
+		}
+
+		switch os.Args[2] {
+		case "add":
+			if len(os.Args) > 3 {
+				fmt.Println("Usage: vd otp add")
+				return 1
+			}
+
+			var name string
+			fmt.Print("Enter OTP name: ")
+			fmt.Scanln(&name)
+
+			secret, err := ReadSecret("Enter OTP secret key: ")
+			if err != nil {
+				return 1
+			}
+
+			if name == "" || secret == "" {
+				fmt.Println("OTP name and secret key can't be empty")
+				return 1
+			}
+
+			if err := SavePassword(Credentials{Name: name, Password: secret, IsOTP: true}); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return 1
+			}
+
+			fmt.Printf("OTP for %s added successfully\n", name)
+		case "get":
+			if len(os.Args) != 4 {
+				fmt.Println("Usage: vd otp get otp_name")
+				return 1
+			}
+
+			if !IsOTP(os.Args[3]) {
+				fmt.Printf("Error: %s is not an OTP\n", os.Args[3])
+				return 1
+			}
+
+			if err := GetPassword(os.Args[3]); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return 1
+			}
+
+			fmt.Printf("OTP code for `%s` copied to clipboard\n", os.Args[3])
+		default:
+			fmt.Println("Usage: vd otp add|get")
+			return 1
+		}
 	case "register":
 		register()
 	case "ls":
