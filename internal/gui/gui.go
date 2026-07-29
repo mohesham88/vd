@@ -26,6 +26,7 @@ const (
 	DeleteRowView      = "deleterowview"
 	ChangePasswordView = "changepasswordview"
 	BannerView         = "bannerview"
+	PlaceholderView    = "placeholderview"
 )
 
 const maxVisibleRows = 14
@@ -339,6 +340,37 @@ func passwordsLayout(g *gocui.Gui) error {
 	if err := renderRows(g); err != nil {
 		return err
 	}
+
+	// Show the placeholder only in the search mode
+	if !deleteMode && !changeMode {
+		if err := renderPlaceholder(g, x0, y0, x1); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func renderPlaceholder(g *gocui.Gui, x0, y0, x1 int) error {
+	if query != "" {
+		if _, err := g.View(PlaceholderView); err == nil {
+			return g.DeleteView(PlaceholderView)
+		}
+		return nil
+	}
+
+	pv, err := g.SetView(PlaceholderView, x0, y0, x1, y0+2, 0)
+	if err != nil && !errors.Is(err, gocui.ErrUnknownView) {
+		return err
+	}
+
+	pv.Frame = false
+	pv.FgColor = gocui.ColorDefault | gocui.AttrDim
+
+	pv.Clear()
+	searchPlaceholder := "  Search passwords, or type / for commands"
+
+	fmt.Fprint(pv, searchPlaceholder)
 
 	return nil
 }
