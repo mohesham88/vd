@@ -58,7 +58,7 @@ func Run() int {
 			return 1
 		}
 		if err := GetPassword(os.Args[2]); err != nil {
-			fmt.Fprintln(os.Stderr, "Error:", err)
+			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
 		fmt.Printf("Password for `%s` copied to clipboard\n", os.Args[2])
