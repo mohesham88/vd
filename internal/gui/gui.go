@@ -25,23 +25,36 @@ const (
 	DeleteConfirmView  = "deleteconfirmview"
 	DeleteRowView      = "deleterowview"
 	ChangePasswordView = "changepasswordview"
+	BannerView         = "bannerview"
 )
+
+var banner = []string{
+	`__      _______  `,
+	`\ \    / /  __ \ `,
+	` \ \  / /| |  | |`,
+	`  \ \/ / | |  | |`,
+	`   \  /  | |__| |`,
+	`    \/   |_____/ `,
+}
 
 var (
 	addViews     = []string{AddNameView, AddPassView, AddConfirmView}
 	addTitles    = []string{" Password Name ", " Password ", " Password Confirmation "}
 	changeViews  = []string{AddPassView, AddConfirmView}
 	changeTitles = []string{" New Password ", " New Password Confirmation "}
+	otpViews     = []string{AddNameView, AddPassView}
+	otpTitles    = []string{" OTP Name ", " OTP Secret Key "}
 	addFocus     int
 )
 
-var Commands = []string{"/add", "/delete", "/change", "/gen"}
+var Commands = []string{"/add", "/addotp", "/delete", "/change", "/gen"}
 
 var (
 	gg            bool
 	passphraseMsg string
 	viewStack     []string
 	passwords     []string
+	otpNames      []string
 	gui           *gocui.Gui
 	selectedRow   int
 	rowCount      int
@@ -52,12 +65,18 @@ var (
 	deleteTarget  string
 	changeMode    bool
 	changeTarget  string
+	otpMode       bool
 )
+
+func refreshPasswordsOnScreen() {
+	passwords = app.ReadPasswordsLookup()
+	otpNames = app.ReadOTPLookup()
+}
 
 func Run() {
 	app.NoTerminalPrompt = true
 
-	passwords = app.ReadPasswordsLookup()
+	refreshPasswordsOnScreen()
 	locked := passwords == nil
 
 	g, err := gocui.NewGui(gocui.OutputNormal, true)
@@ -212,7 +231,8 @@ func gpgPassphraseLayout(g *gocui.Gui) error {
 	if passphraseMsg != "" {
 		v.Title = fmt.Sprintf(" %s ", passphraseMsg)
 	}
-	return nil
+
+	return renderBanner(g, y0)
 }
 
 func passphraseEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
@@ -256,7 +276,7 @@ func passwordsSearchEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modi
 
 func unlock(g *gocui.Gui, v *gocui.View) error {
 	app.PassphraseCache = strings.TrimRight(v.Buffer(), "\r\n")
-	passwords = app.ReadPasswordsLookup()
+	refreshPasswordsOnScreen()
 
 	if passwords == nil {
 		app.PassphraseCache = ""
@@ -304,6 +324,10 @@ func passwordsLayout(g *gocui.Gui) error {
 		}
 	}
 
+	if err := renderBanner(g, y0); err != nil {
+		return err
+	}
+
 	if err := renderFeedback(g, x0, y0, x1); err != nil {
 		return err
 	}
@@ -311,6 +335,26 @@ func passwordsLayout(g *gocui.Gui) error {
 	if err := renderRows(g); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func renderBanner(g *gocui.Gui, y0 int) error {
+	maxX, _ := g.Size()
+	w := len(banner[0])
+	x0 := (maxX - w) / 2
+	by1 := y0 - 7
+	by0 := by1 - len(banner) - 1
+
+	v, err := g.SetView(BannerView, x0, by0, x0+w+1, by1, 0)
+	if err != nil && !errors.Is(err, gocui.ErrUnknownView) {
+		return err
+	}
+
+	v.Frame = false
+	v.FgColor = gocui.ColorMagenta
+	v.Clear()
+	fmt.Fprint(v, strings.Join(banner, "\n"))
 
 	return nil
 }
@@ -460,7 +504,11 @@ func renderRows(g *gocui.Gui) error {
 		}
 
 		bv.Clear()
-		fmt.Fprint(bv, entries[i])
+		if isCommands {
+			fmt.Fprint(bv, entries[i])
+		} else {
+			fmt.Fprint(bv, entryLabel(entries[i]))
+		}
 	}
 
 	for i := numRows; ; i++ {
@@ -474,6 +522,13 @@ func renderRows(g *gocui.Gui) error {
 	}
 
 	return nil
+}
+
+func entryLabel(name string) string {
+	if slices.Contains(otpNames, name) {
+		return name + " [OTP]"
+	}
+	return name
 }
 
 func filterCommands() []string {
@@ -542,6 +597,11 @@ func handleGetPassword(g *gocui.Gui) error {
 		return nil
 	}
 
+	if slices.Contains(otpNames, passwordName) {
+		showFeedback(g, fmt.Sprintf("OTP code for `%s` copied to clipboard!", passwordName))
+		return nil
+	}
+
 	showFeedback(g, fmt.Sprintf("Password for `%s` copied to clipboard!", passwordName))
 	return nil
 }
@@ -562,6 +622,10 @@ func handleCommand(g *gocui.Gui) error {
 		app.CopyToClipboard(randomPassword)
 		showFeedback(g, "Generated password copied to clipboard!")
 	case "/add":
+		pushToViewStack(AddPasswordView)
+	case "/addotp":
+		otpMode = true
+		addFocus = 0
 		pushToViewStack(AddPasswordView)
 	case "/delete":
 		deleteMode = true
@@ -661,7 +725,7 @@ func confirmDelete(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	passwords = app.ReadPasswordsLookup()
+	refreshPasswordsOnScreen()
 	showFeedback(g, fmt.Sprintf("Password for `%s` deleted!", name))
 
 	return nil
@@ -707,6 +771,9 @@ func popViewStack() {
 func activeAddFields() ([]string, []string) {
 	if changeMode {
 		return changeViews, changeTitles
+	}
+	if otpMode {
+		return otpViews, otpTitles
 	}
 	return addViews, addTitles
 }
@@ -777,6 +844,10 @@ func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
 		return submitChangePassword(g, v)
 	}
 
+	if otpMode {
+		return submitAddOTP(g, v)
+	}
+
 	name := addFieldValue(g, AddNameView)
 	password := addFieldValue(g, AddPassView)
 	confirmation := addFieldValue(g, AddConfirmView)
@@ -796,8 +867,28 @@ func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	passwords = app.ReadPasswordsLookup()
+	refreshPasswordsOnScreen()
 	showFeedback(g, fmt.Sprintf("Password for `%s` saved!", name))
+
+	return closeAddPassword(g, v)
+}
+
+func submitAddOTP(g *gocui.Gui, v *gocui.View) error {
+	name := addFieldValue(g, AddNameView)
+	secret := addFieldValue(g, AddPassView)
+
+	if name == "" || secret == "" {
+		showFeedback(g, "OTP name and secret key can't be empty")
+		return nil
+	}
+
+	if err := app.SavePassword(app.Credentials{Name: name, Password: secret, IsOTP: true}); err != nil {
+		showFeedback(g, err.Error())
+		return nil
+	}
+
+	refreshPasswordsOnScreen()
+	showFeedback(g, fmt.Sprintf("OTP for `%s` saved!", name))
 
 	return closeAddPassword(g, v)
 }
@@ -830,6 +921,7 @@ func submitChangePassword(g *gocui.Gui, v *gocui.View) error {
 
 func closeAddPassword(g *gocui.Gui, v *gocui.View) error {
 	addFocus = 0
+	otpMode = false
 	resetChangeMode()
 	popViewStack()
 	return nil

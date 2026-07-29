@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
+
+	"github.com/ahmedhosssam/vd/internal/totp"
 )
 
 func createJSONObj(data Credentials) ([]byte, error) {
@@ -56,6 +59,10 @@ func SavePassword(credentials Credentials) error {
 
 	UpdatePasswordsLookup(credentials.Name)
 
+	if credentials.IsOTP {
+		UpdateOTPLookup(credentials.Name)
+	}
+
 	log.Printf("Password for `%s` added successfully", credentials.Name)
 	return nil
 }
@@ -63,14 +70,14 @@ func SavePassword(credentials Credentials) error {
 func GetPassword(credentialsName string) error {
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
 		log.Printf("Error: password for %s doesn't exist", credentialsName)
-		err := fmt.Errorf("Error: password for %s doesn't exist", credentialsName)
+		err := fmt.Errorf("error: password for %s doesn't exist", credentialsName)
 		return err
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
 		log.Println("Error getting home directory:", err)
-		return fmt.Errorf("Error getting home directory: %w", err)
+		return fmt.Errorf("error getting home directory: %w", err)
 	}
 
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
@@ -79,28 +86,39 @@ func GetPassword(credentialsName string) error {
 	if _, err := os.Stat(filename); err != nil {
 		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		UpdatePasswordsLookup(credentialsName, true)
-		return fmt.Errorf("Error: password for %s doesn't exist", credentialsName)
+		return fmt.Errorf("error: password for %s doesn't exist", credentialsName)
 	}
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		log.Println("Error reading password file:", err)
-		return fmt.Errorf("Error reading password file: %w", err)
+		return fmt.Errorf("error reading password file: %w", err)
 	}
 
 	decrypted, err := Decrypt(data)
 	if err != nil {
 		log.Println("Error decrypting password file:", err)
-		return fmt.Errorf("Error decrypting password file: %w", err)
+		return fmt.Errorf("error decrypting password file: %w", err)
 	}
 
 	var creds Credentials
 	if err := json.Unmarshal(decrypted, &creds); err != nil {
 		log.Println("Error parsing password file:", err)
-		return fmt.Errorf("Error parsing password file: %w", err)
+		return fmt.Errorf("error parsing password file: %w", err)
 	}
 
-	if err := CopyToClipboard(creds.Password); err != nil {
+	value := creds.Password
+
+	if creds.IsOTP {
+		code, err := totp.GetTotpCode(creds.Password, time.Now(), 6)
+		if err != nil {
+			log.Println("Error generating OTP code:", err)
+			return fmt.Errorf("error generating OTP code: %w", err)
+		}
+		value = code
+	}
+
+	if err := CopyToClipboard(value); err != nil {
 		log.Println(err)
 		return err
 	}
@@ -132,6 +150,7 @@ func DeletePassword(credentialsName string) (bool, error) {
 	}
 
 	UpdatePasswordsLookup(credentialsName, true)
+	UpdateOTPLookup(credentialsName, true)
 
 	return true, nil
 }
@@ -149,7 +168,7 @@ func ChangePassword(credentialsName, newPassword string) (bool, error) {
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
 	filename := filepath.Join(dir, credentialsName)
 
-	data, err := createJSONObj(Credentials{Name: credentialsName, Password: newPassword})
+	data, err := createJSONObj(Credentials{Name: credentialsName, Password: newPassword, IsOTP: IsOTP(credentialsName)})
 	if err != nil {
 		return false, err
 	}
@@ -201,6 +220,7 @@ func listCurrentPasswords() {
 	}
 
 	passwordsDir := filepath.Join(home, ".local", "share", "vd", "passwords")
+	otpNames := ReadOTPLookup()
 
 	for _, name := range ReadPasswordsLookup() {
 		if _, err := os.Stat(filepath.Join(passwordsDir, name)); err != nil {
@@ -209,6 +229,10 @@ func listCurrentPasswords() {
 				continue
 			}
 			fmt.Println("Error checking password file:", err)
+			continue
+		}
+		if slices.Contains(otpNames, name) {
+			fmt.Println(name, "[OTP]")
 			continue
 		}
 		fmt.Println(name)
