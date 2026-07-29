@@ -368,7 +368,7 @@ func renderPlaceholder(g *gocui.Gui, x0, y0, x1 int) error {
 	pv.FgColor = gocui.ColorDefault | gocui.AttrDim
 
 	pv.Clear()
-	searchPlaceholder := "  Search passwords, or type / for commands"
+	searchPlaceholder := "Search passwords, or type / for commands"
 
 	fmt.Fprint(pv, searchPlaceholder)
 
