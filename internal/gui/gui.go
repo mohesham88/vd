@@ -28,6 +28,8 @@ const (
 	BannerView         = "bannerview"
 )
 
+const maxVisibleRows = 14
+
 var banner = []string{
 	`__      _______  `,
 	`\ \    / /  __ \ `,
@@ -57,6 +59,7 @@ var (
 	otpNames      []string
 	gui           *gocui.Gui
 	selectedRow   int
+	rowOffset     int
 	rowCount      int
 	query         string
 	feedbackMsg   string
@@ -266,6 +269,7 @@ func passwordsSearchEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modi
 	if newQuery != query {
 		query = newQuery
 		clearFeedback()
+		rowOffset = 0
 		if isCommandsQuery() {
 			selectedRow = 1<<31 - 1
 		} else {
@@ -473,7 +477,26 @@ func renderRows(g *gocui.Gui) error {
 		selectedRow = 0
 	}
 
-	for i := range numRows {
+	if selectedRow < rowOffset {
+		rowOffset = selectedRow
+	}
+
+	if selectedRow >= (rowOffset + maxVisibleRows) {
+		rowOffset = selectedRow - maxVisibleRows + 1
+	}
+
+	if rowOffset > (numRows - maxVisibleRows) {
+		rowOffset = numRows - maxVisibleRows
+	}
+
+	if rowOffset < 0 {
+		rowOffset = 0
+	}
+
+	visibleRows := min(numRows-rowOffset, maxVisibleRows)
+
+	for i := range visibleRows {
+		entry := entries[rowOffset+i]
 		by0 := y1 + i*rowH
 
 		if isCommands {
@@ -490,7 +513,7 @@ func renderRows(g *gocui.Gui) error {
 		bv.Wrap = false
 		bv.Frame = false
 
-		if i == selectedRow {
+		if rowOffset+i == selectedRow {
 			bv.BgColor = gocui.ColorMagenta
 			bv.FgColor = gocui.ColorBlack
 		} else {
@@ -505,13 +528,13 @@ func renderRows(g *gocui.Gui) error {
 
 		bv.Clear()
 		if isCommands {
-			fmt.Fprint(bv, entries[i])
+			fmt.Fprint(bv, entry)
 		} else {
-			fmt.Fprint(bv, entryLabel(entries[i]))
+			fmt.Fprint(bv, entryLabel(entry))
 		}
 	}
 
-	for i := numRows; ; i++ {
+	for i := visibleRows; ; i++ {
 		name := fmt.Sprintf("row%d", i)
 		if _, err := g.View(name); err != nil {
 			break
