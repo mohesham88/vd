@@ -29,7 +29,7 @@ const (
 	PlaceholderView    = "placeholderview"
 )
 
-const maxVisibleRows = 14
+const maxVisibleRows = 12
 
 var banner = []string{
 	`__      _______  `,
