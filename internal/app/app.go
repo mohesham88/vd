@@ -12,6 +12,7 @@ func Run() int {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: vd <command>")
 		fmt.Println("Commands:")
+		fmt.Println("  vd       Open the TUI")
 		fmt.Println("  add      Add a new password [--name password_name --password password]")
 		fmt.Println("  get      Copy a password to clipboard")
 		fmt.Println("  delete   Delete a stored password")
@@ -173,6 +174,19 @@ func Run() int {
 
 		fmt.Println("New random password has been copied to clipboard")
 
+	case "help":
+		fmt.Println("Usage: vd <command>")
+		fmt.Println("Commands:")
+		fmt.Println("  vd       Open the TUI")
+		fmt.Println("  add      Add a new password [--name password_name --password password]")
+		fmt.Println("  get      Copy a password to clipboard")
+		fmt.Println("  delete   Delete a stored password")
+		fmt.Println("  change   Change a stored password")
+		fmt.Println("  otp      Add an OTP or copy its code [add|get otp_name]")
+		fmt.Println("  register Register a new GPG key")
+		fmt.Println("  ls       List stored passwords")
+		fmt.Println("  gen      Generate a random password to clipboard")
+		return 0
 	default:
 		fmt.Println("Unknown command:", os.Args[1])
 		return 1
