@@ -65,11 +65,6 @@ func copyCommand() []string {
 		if has("xsel") {
 			return []string{"xsel", "--clipboard", "--input"}
 		}
-	case "windows":
-		if has("powershell.exe") {
-			return []string{"powershell.exe", "-NonInteractive", "-NoProfile", "-Command",
-				"[Console]::InputEncoding = [System.Text.Encoding]::UTF8; Set-Clipboard -Value ([Console]::In.ReadToEnd())"}
-		}
 	}
 	return nil
 }
