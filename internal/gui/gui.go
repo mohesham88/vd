@@ -431,13 +431,18 @@ func renderFeedback(g *gocui.Gui, x0, y0, x1 int) error {
 	return nil
 }
 
-func showFeedback(g *gocui.Gui, msg string) {
+func showFeedback(g *gocui.Gui, msg string, timeout ...int) {
+	seconds := 3
+	if len(timeout) > 0 {
+		seconds = timeout[0]
+	}
+
 	feedbackMsg = msg
 	feedbackID++
 	id := feedbackID
 
 	go func() {
-		time.Sleep(3 * time.Second)
+		time.Sleep(time.Duration(seconds) * time.Second)
 		g.Update(func(g *gocui.Gui) error {
 			if id == feedbackID {
 				feedbackMsg = ""
@@ -704,11 +709,11 @@ func handleCommand(g *gocui.Gui) error {
 	case "/delete":
 		deleteMode = true
 		selectedRow = 0
-		showFeedback(g, "Choose the password you want to delete")
+		showFeedback(g, "Choose the password you want to delete", 3000)
 	case "/change":
 		changeMode = true
 		selectedRow = 0
-		showFeedback(g, "Choose the password you want to change")
+		showFeedback(g, "Choose the password you want to change", 3000)
 	}
 
 	return nil
