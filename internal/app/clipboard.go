@@ -1,75 +1,70 @@
 package app
 
 import (
-	"errors"
+	"encoding/base64"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 	"sync"
-
-	"golang.design/x/clipboard"
 )
 
 var (
-	clipboardOnce sync.Once
-	clipboardErr  error
+	copyOnce sync.Once
+	copyCmd  []string
 )
 
 func CopyToClipboard(text string) error {
-	if IsWayland() {
-		if err := WlCopy(text); err == nil {
-			return nil
-		} else if !IsMissingWlCopy(err) {
-			return err
-		}
-		return nil
-	}
+	writeOSC52(text)
 
-	clipboardOnce.Do(func() {
-		clipboardErr = clipboard.Init()
+	copyOnce.Do(func() {
+		copyCmd = copyCommand()
 	})
-	if clipboardErr != nil {
-		return fmt.Errorf("error initializing clipboard: %w", clipboardErr)
+
+	if len(copyCmd) == 0 {
+		return fmt.Errorf("no clipboard command found")
 	}
 
-	clipboard.Write(clipboard.FmtText, []byte(text))
+	if copyCmd[0] == "osascript" {
+		escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(text)
+		return exec.Command("osascript", "-e", fmt.Sprintf(`set the clipboard to "%s"`, escaped)).Run()
+	}
 
+	cmd := exec.Command(copyCmd[0], copyCmd[1:]...)
+	cmd.Stdin = strings.NewReader(text)
+	return cmd.Run()
+}
+
+func writeOSC52(text string) {
+	sequence := fmt.Sprintf("\x1b]52;c;%s\x07", base64.StdEncoding.EncodeToString([]byte(text)))
+	if os.Getenv("TMUX") != "" || os.Getenv("STY") != "" {
+		sequence = fmt.Sprintf("\x1bPtmux;\x1b%s\x1b\\", sequence)
+	}
+	os.Stdout.WriteString(sequence)
+}
+
+func copyCommand() []string {
+	has := func(name string) bool {
+		_, err := exec.LookPath(name)
+		return err == nil
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		if has("osascript") {
+			return []string{"osascript"}
+		}
+	case "linux":
+		if os.Getenv("WAYLAND_DISPLAY") != "" && has("wl-copy") {
+			return []string{"wl-copy"}
+		}
+		if has("xclip") {
+			return []string{"xclip", "-selection", "clipboard"}
+		}
+		if has("xsel") {
+			return []string{"xsel", "--clipboard", "--input"}
+		}
+	}
 	return nil
-}
-
-func IsWayland() bool {
-	return os.Getenv("WAYLAND_DISPLAY") != ""
-}
-
-func WlCopy(text string) error {
-	cmd := exec.Command("wl-copy", "--type", "text/plain")
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return err
-	}
-
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	_, writeErr := io.WriteString(stdin, text)
-	closeErr := stdin.Close()
-
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("wl-copy: %w", err)
-	}
-	if writeErr != nil {
-		return fmt.Errorf("wl-copy: %w", writeErr)
-	}
-
-	return closeErr
-}
-
-func IsMissingWlCopy(err error) bool {
-	var execErr *exec.Error
-	return errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound)
 }

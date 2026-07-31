@@ -67,17 +67,18 @@ func SavePassword(credentials Credentials) error {
 	return nil
 }
 
-func GetPassword(credentialsName string) error {
+func LoadCredentials(credentialsName string) (Credentials, error) {
+	var creds Credentials
+
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
 		log.Printf("Error: password for %s doesn't exist", credentialsName)
-		err := fmt.Errorf("error: password for %s doesn't exist", credentialsName)
-		return err
+		return creds, fmt.Errorf("error: password for %s doesn't exist", credentialsName)
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
 		log.Println("Error getting home directory:", err)
-		return fmt.Errorf("error getting home directory: %w", err)
+		return creds, fmt.Errorf("error getting home directory: %w", err)
 	}
 
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
@@ -86,25 +87,33 @@ func GetPassword(credentialsName string) error {
 	if _, err := os.Stat(filename); err != nil {
 		log.Printf("Error: password for %s doesn't exist", credentialsName)
 		UpdatePasswordsLookup(credentialsName, true)
-		return fmt.Errorf("error: password for %s doesn't exist", credentialsName)
+		return creds, fmt.Errorf("error: password for %s doesn't exist", credentialsName)
 	}
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		log.Println("Error reading password file:", err)
-		return fmt.Errorf("error reading password file: %w", err)
+		return creds, fmt.Errorf("error reading password file: %w", err)
 	}
 
 	decrypted, err := Decrypt(data)
 	if err != nil {
 		log.Println("Error decrypting password file:", err)
-		return fmt.Errorf("error decrypting password file: %w", err)
+		return creds, fmt.Errorf("error decrypting password file: %w", err)
 	}
 
-	var creds Credentials
 	if err := json.Unmarshal(decrypted, &creds); err != nil {
 		log.Println("Error parsing password file:", err)
-		return fmt.Errorf("error parsing password file: %w", err)
+		return creds, fmt.Errorf("error parsing password file: %w", err)
+	}
+
+	return creds, nil
+}
+
+func GetPassword(credentialsName string) error {
+	creds, err := LoadCredentials(credentialsName)
+	if err != nil {
+		return err
 	}
 
 	value := creds.Password
@@ -179,6 +188,33 @@ func ChangePassword(credentialsName, newPassword string) (bool, error) {
 	}
 
 	if err := os.WriteFile(filename, encrypted, 0o600); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func RenamePassword(oldName, newName string) (bool, error) {
+	if oldName == newName {
+		return true, nil
+	}
+
+	if slices.Contains(ReadPasswordsLookup(), newName) {
+		return false, fmt.Errorf("error: password for %s already exists", newName)
+	}
+
+	creds, err := LoadCredentials(oldName)
+	if err != nil {
+		return false, err
+	}
+
+	creds.Name = newName
+
+	if err := SavePassword(creds); err != nil {
+		return false, err
+	}
+
+	if _, err := DeletePassword(oldName); err != nil {
 		return false, err
 	}
 
