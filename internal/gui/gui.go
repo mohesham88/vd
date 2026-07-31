@@ -848,6 +848,10 @@ func activeAddFields() ([]string, []string) {
 }
 
 func defaultFieldValue(name string) string {
+	if !changeMode {
+		return ""
+	}
+
 	if changeMode {
 		switch name {
 		case AddNameView:
