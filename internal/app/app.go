@@ -15,7 +15,7 @@ func Run() int {
 		fmt.Println("  vd       Open the TUI")
 		fmt.Println("  add      Add a new password [--name password_name --password password]")
 		fmt.Println("  get      Copy a password to clipboard")
-		fmt.Println("  delete   Delete a stored password")
+		fmt.Println("  delete   Delete a stored password [-f|--force]")
 		fmt.Println("  change   Change a stored password")
 		fmt.Println("  otp      Add an OTP or copy its code [add|get otp_name]")
 		fmt.Println("  register Register a new GPG key")
@@ -65,31 +65,48 @@ func Run() int {
 		}
 		fmt.Printf("Password for `%s` copied to clipboard\n", os.Args[2])
 	case "delete":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: vd delete password_name")
-			return 1
+		var name string
+		force := false
+
+		for _, arg := range os.Args[2:] {
+			switch arg {
+			case "-f", "--force":
+				force = true
+			default:
+				if name != "" {
+					fmt.Println("Usage: vd delete [-f|--force] password_name")
+					return 1
+				}
+				name = arg
+			}
 		}
-		if !slices.Contains(ReadPasswordsLookup(), os.Args[2]) {
-			fmt.Printf("Error: password for %s doesn't exist\n", os.Args[2])
+
+		if name == "" {
+			fmt.Println("Usage: vd delete [-f|--force] password_name")
 			return 1
 		}
 
-		if !Confirm(fmt.Sprintf("Delete password for %s?", os.Args[2])) {
+		if !slices.Contains(ReadPasswordsLookup(), name) {
+			fmt.Printf("Error: password for %s doesn't exist\n", name)
 			return 1
 		}
 
-		success, err := DeletePassword(os.Args[2])
+		if !force && !Confirm(fmt.Sprintf("Delete password for %s?", name)) {
+			return 1
+		}
+
+		success, err := DeletePassword(name)
 		if err != nil {
 			fmt.Println("Error deleting password:", err)
 			return 1
 		}
 
 		if !success {
-			fmt.Printf("Error: password for %s doesn't exist\n", os.Args[2])
+			fmt.Printf("Error: password for %s doesn't exist\n", name)
 			return 1
 		}
 
-		fmt.Printf("Password for %s deleted\n", os.Args[2])
+		fmt.Printf("Password for %s deleted\n", name)
 	case "otp":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: vd otp add|get")
@@ -180,7 +197,7 @@ func Run() int {
 		fmt.Println("  vd       Open the TUI")
 		fmt.Println("  add      Add a new password [--name password_name --password password]")
 		fmt.Println("  get      Copy a password to clipboard")
-		fmt.Println("  delete   Delete a stored password")
+		fmt.Println("  delete   Delete a stored password [-f|--force]")
 		fmt.Println("  change   Change a stored password")
 		fmt.Println("  otp      Add an OTP or copy its code [add|get otp_name]")
 		fmt.Println("  register Register a new GPG key")
