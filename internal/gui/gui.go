@@ -53,7 +53,6 @@ var (
 var Commands = []string{"/add", "/addotp", "/delete", "/change", "/gen"}
 
 var (
-	gg            bool
 	passphraseMsg string
 	viewStack     []string
 	passwords     []string
@@ -103,10 +102,6 @@ func Run() {
 	g.SetManagerFunc(layout)
 
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
-		log.Panicln(err)
-	}
-
-	if err := g.SetKeybinding("", gocui.KeyCtrlG, gocui.ModNone, changeLayout); err != nil {
 		log.Panicln(err)
 	}
 
@@ -212,11 +207,6 @@ func clearScreen(g *gocui.Gui, keep ...string) error {
 			return err
 		}
 	}
-	return nil
-}
-
-func changeLayout(g *gocui.Gui, v *gocui.View) error {
-	gg = !gg
 	return nil
 }
 
