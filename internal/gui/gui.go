@@ -656,6 +656,7 @@ func handleGetPassword(g *gocui.Gui) error {
 	entries := filterPasswords()
 
 	if len(entries) == 0 {
+		showFeedback(g, "No password found")
 		return nil
 	}
 
@@ -684,18 +685,23 @@ func handleGetPassword(g *gocui.Gui) error {
 func handleCommand(g *gocui.Gui) error {
 	commands := filterCommands()
 
+	if len(commands) == 0 {
+		showFeedback(g, "No command found")
+		return nil
+	}
+
 	commandName := commands[selectedRow]
 
 	switch commandName {
 	case "/gen":
 		randomPassword, err := app.GenerateRandomPassword()
 		if err != nil {
-			showFeedback(g, "Error happened during generating random password")
+			showFeedback(g, err.Error())
 			return err
 		}
 
 		if err := app.CopyToClipboard(randomPassword); err != nil {
-			showFeedback(g, "Error happened during copying to clipboard")
+			showFeedback(g, err.Error())
 			return nil
 		}
 
@@ -803,13 +809,13 @@ func deleteConfirmLayout(g *gocui.Gui) error {
 
 func confirmDelete(g *gocui.Gui, v *gocui.View) error {
 	name := deleteTarget
-	success, err := app.DeletePassword(name)
+	err := app.DeletePassword(name)
 
 	resetDeleteMode()
 	popViewStack()
 
-	if err != nil || !success {
-		showFeedback(g, fmt.Sprintf("Error happened while deleting `%s`", name))
+	if err != nil {
+		showFeedback(g, err.Error())
 		return nil
 	}
 
@@ -820,19 +826,20 @@ func confirmDelete(g *gocui.Gui, v *gocui.View) error {
 }
 
 func cancelDelete(g *gocui.Gui, v *gocui.View) error {
+	cancelSelectionMode(g, v)
 	resetDeleteMode()
 	popViewStack()
 	return nil
 }
 
 func cancelSelectionMode(g *gocui.Gui, v *gocui.View) error {
+	showFeedback(g, "")
+
 	switch {
 	case deleteMode:
 		resetDeleteMode()
-		showFeedback(g, "Deletion cancelled")
 	case changeMode:
 		resetChangeMode()
-		showFeedback(g, "Change cancelled")
 	}
 
 	return nil
@@ -856,7 +863,7 @@ func popViewStack() {
 	clearScreen(gui)
 }
 
-func activeAddFields() ([]string, []string) {
+func activeAddPasswordViewFields() ([]string, []string) {
 	if changeMode {
 		return changeViews, changeTitles
 	}
@@ -867,6 +874,8 @@ func activeAddFields() ([]string, []string) {
 }
 
 func defaultFieldValue(name string) string {
+	// Used mainly for change password, to fill fields with the old values.
+
 	if otpMode {
 		return ""
 	}
@@ -882,7 +891,7 @@ func defaultFieldValue(name string) string {
 }
 
 func addPasswordLayout(g *gocui.Gui) error {
-	views, titles := activeAddFields()
+	views, titles := activeAddPasswordViewFields()
 
 	maxX, maxY := g.Size()
 	w := 60
@@ -938,6 +947,8 @@ func addPasswordLayout(g *gocui.Gui) error {
 }
 
 func togglePlaceholder(g *gocui.Gui, v *gocui.View, x0, y0, x1 int) error {
+	// Show placeholder only when the field is empty
+
 	filled := strings.TrimRight(v.Buffer(), "\r\n") != ""
 
 	if cv, err := g.View(AddConfirmView); err == nil && strings.TrimRight(cv.Buffer(), "\r\n") != "" {
@@ -956,13 +967,15 @@ func togglePlaceholder(g *gocui.Gui, v *gocui.View, x0, y0, x1 int) error {
 }
 
 func generateAddPassword(g *gocui.Gui, v *gocui.View) error {
+	// Add a generated password to password and password confirmation fields in add password
+
 	if otpMode {
 		return nil
 	}
 
 	password, err := app.GenerateRandomPassword()
 	if err != nil {
-		showFeedback(g, "Error happened during generating random password")
+		showFeedback(g, err.Error())
 		return nil
 	}
 
@@ -989,18 +1002,18 @@ func generateAddPassword(g *gocui.Gui, v *gocui.View) error {
 }
 
 func nextAddField(g *gocui.Gui, v *gocui.View) error {
-	views, _ := activeAddFields()
+	views, _ := activeAddPasswordViewFields()
 	addFocus = (addFocus + 1) % len(views)
 	return nil
 }
 
 func prevAddField(g *gocui.Gui, v *gocui.View) error {
-	views, _ := activeAddFields()
+	views, _ := activeAddPasswordViewFields()
 	addFocus = (addFocus - 1 + len(views)) % len(views)
 	return nil
 }
 
-func addFieldValue(g *gocui.Gui, name string) string {
+func getViewContent(g *gocui.Gui, name string) string {
 	v, err := g.View(name)
 	if err != nil {
 		return ""
@@ -1017,9 +1030,9 @@ func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
 		return submitAddOTP(g, v)
 	}
 
-	name := addFieldValue(g, AddNameView)
-	password := addFieldValue(g, AddPassView)
-	confirmation := addFieldValue(g, AddConfirmView)
+	name := getViewContent(g, AddNameView)
+	password := getViewContent(g, AddPassView)
+	confirmation := getViewContent(g, AddConfirmView)
 
 	if name == "" || password == "" {
 		showFeedback(g, "Password name and password can't be empty")
@@ -1043,11 +1056,11 @@ func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
 }
 
 func submitAddOTP(g *gocui.Gui, v *gocui.View) error {
-	name := addFieldValue(g, AddNameView)
-	secret := addFieldValue(g, AddPassView)
+	name := getViewContent(g, AddNameView)
+	secret := getViewContent(g, AddPassView)
 
 	if name == "" || secret == "" {
-		showFeedback(g, "OTP name and secret key can't be empty")
+		showFeedback(g, "Name and secret key can't be empty")
 		return nil
 	}
 
@@ -1063,9 +1076,9 @@ func submitAddOTP(g *gocui.Gui, v *gocui.View) error {
 }
 
 func submitChangePassword(g *gocui.Gui, v *gocui.View) error {
-	name := addFieldValue(g, AddNameView)
-	password := addFieldValue(g, AddPassView)
-	confirmation := addFieldValue(g, AddConfirmView)
+	name := getViewContent(g, AddNameView)
+	password := getViewContent(g, AddPassView)
+	confirmation := getViewContent(g, AddConfirmView)
 
 	if name == "" || password == "" {
 		showFeedback(g, "Password name and password can't be empty")
@@ -1077,16 +1090,15 @@ func submitChangePassword(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	success, err := app.ChangePassword(changeTarget, password)
-	if err != nil || !success {
-		showFeedback(g, fmt.Sprintf("Error happened while changing `%s`", changeTarget))
+	if err := app.ChangePassword(changeTarget, password); err != nil {
+		showFeedback(g, err.Error())
 		return closeAddPassword(g, v)
 	}
 
 	if name != changeTarget {
-		if success, err := app.RenamePassword(changeTarget, name); err != nil || !success {
+		if err := app.RenamePassword(changeTarget, name); err != nil {
 			refreshPasswordsOnScreen()
-			showFeedback(g, fmt.Sprintf("Password changed, but renaming to `%s` failed", name))
+			showFeedback(g, err.Error())
 			return closeAddPassword(g, v)
 		}
 	}

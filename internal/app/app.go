@@ -95,14 +95,8 @@ func Run() int {
 			return 1
 		}
 
-		success, err := DeletePassword(name)
-		if err != nil {
+		if err := DeletePassword(name); err != nil {
 			fmt.Println("Error deleting password:", err)
-			return 1
-		}
-
-		if !success {
-			fmt.Printf("Error: password for %s doesn't exist\n", name)
 			return 1
 		}
 

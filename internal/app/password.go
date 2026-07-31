@@ -136,14 +136,14 @@ func GetPassword(credentialsName string) error {
 	return nil
 }
 
-func DeletePassword(credentialsName string) (bool, error) {
+func DeletePassword(credentialsName string) error {
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
-		return false, nil
+		return fmt.Errorf("error: password for %s doesn't exist", credentialsName)
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
@@ -151,27 +151,27 @@ func DeletePassword(credentialsName string) (bool, error) {
 
 	if _, err := os.Stat(filename); err != nil {
 		UpdatePasswordsLookup(credentialsName, true)
-		return false, nil
+		return fmt.Errorf("error: password for %s doesn't exist", credentialsName)
 	}
 
 	if err := os.Remove(filename); err != nil {
-		return false, err
+		return err
 	}
 
 	UpdatePasswordsLookup(credentialsName, true)
 	UpdateOTPLookup(credentialsName, true)
 
-	return true, nil
+	return nil
 }
 
-func ChangePassword(credentialsName, newPassword string) (bool, error) {
+func ChangePassword(credentialsName, newPassword string) error {
 	if !slices.Contains(ReadPasswordsLookup(), credentialsName) {
-		return false, nil
+		return fmt.Errorf("error: password for %s doesn't exist", credentialsName)
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	dir := filepath.Join(home, ".local", "share", "vd", "passwords")
@@ -179,46 +179,46 @@ func ChangePassword(credentialsName, newPassword string) (bool, error) {
 
 	data, err := createJSONObj(Credentials{Name: credentialsName, Password: newPassword, IsOTP: IsOTP(credentialsName)})
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	encrypted, err := Encrypt(data)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if err := os.WriteFile(filename, encrypted, 0o600); err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
-func RenamePassword(oldName, newName string) (bool, error) {
+func RenamePassword(oldName, newName string) error {
 	if oldName == newName {
-		return true, nil
+		return nil
 	}
 
 	if slices.Contains(ReadPasswordsLookup(), newName) {
-		return false, fmt.Errorf("error: password for %s already exists", newName)
+		return fmt.Errorf("error: password for %s already exists", newName)
 	}
 
 	creds, err := LoadCredentials(oldName)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	creds.Name = newName
 
 	if err := SavePassword(creds); err != nil {
-		return false, err
+		return err
 	}
 
-	if _, err := DeletePassword(oldName); err != nil {
-		return false, err
+	if err := DeletePassword(oldName); err != nil {
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
 func changePassword(targetPassword string) error {
@@ -233,15 +233,9 @@ func changePassword(targetPassword string) error {
 		return fmt.Errorf("error reading password: %w", err)
 	}
 
-	success, err := ChangePassword(targetPassword, newPassword)
-	if err != nil {
+	if err := ChangePassword(targetPassword, newPassword); err != nil {
 		log.Println("Error changing password:", err)
 		return fmt.Errorf("error changing password: %w", err)
-	}
-
-	if !success {
-		log.Printf("Error: password for %s doesn't exist", targetPassword)
-		return fmt.Errorf("error: password for %s doesn't exist", targetPassword)
 	}
 
 	log.Printf("Password for `%s` changed successfully", targetPassword)
