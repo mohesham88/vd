@@ -50,7 +50,7 @@ var (
 	addFocus     int
 )
 
-var Commands = []string{"/add", "/addotp", "/delete", "/change", "/gen"}
+var Commands = []string{"/add", "/addotp", "/delete", "/change", "/gen", "/export"}
 
 var (
 	passphraseMsg string
@@ -706,6 +706,14 @@ func handleCommand(g *gocui.Gui) error {
 		deleteMode = true
 		selectedRow = 0
 		showFeedback(g, "Choose the password you want to delete", 3000)
+	case "/export":
+		filename, err := app.ExportPasswords()
+		if err != nil {
+			showFeedback(g, err.Error())
+			return nil
+		}
+
+		showFeedback(g, fmt.Sprintf("Passwords exported to `%s`", filename))
 	case "/change":
 		changeMode = true
 		selectedRow = 0
