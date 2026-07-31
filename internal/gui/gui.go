@@ -43,8 +43,8 @@ var banner = []string{
 var (
 	addViews     = []string{AddNameView, AddPassView, AddConfirmView}
 	addTitles    = []string{" Password Name ", " Password ", " Password Confirmation "}
-	changeViews  = []string{AddPassView, AddConfirmView}
-	changeTitles = []string{" New Password ", " New Password Confirmation "}
+	changeViews  = []string{AddNameView, AddPassView, AddConfirmView}
+	changeTitles = []string{" Password Name ", " New Password ", " New Password Confirmation "}
 	otpViews     = []string{AddNameView, AddPassView}
 	otpTitles    = []string{" OTP Name ", " OTP Secret Key "}
 	addFocus     int
@@ -69,6 +69,7 @@ var (
 	deleteTarget  string
 	changeMode    bool
 	changeTarget  string
+	changeOldPass string
 	otpMode       bool
 )
 
@@ -703,6 +704,15 @@ func handleChangePassword(g *gocui.Gui) error {
 	}
 
 	changeTarget = entries[selectedRow]
+
+	creds, err := app.LoadCredentials(changeTarget)
+	if err != nil {
+		resetChangeMode()
+		showFeedback(g, err.Error())
+		return nil
+	}
+	changeOldPass = creds.Password
+
 	addFocus = 0
 	pushToViewStack(ChangePasswordView)
 	showFeedback(g, fmt.Sprintf("Changing the password for `%s`", changeTarget))
@@ -833,6 +843,28 @@ func activeAddFields() ([]string, []string) {
 	return addViews, addTitles
 }
 
+func defaultFieldValue(name string) string {
+	if changeMode {
+		switch name {
+		case AddNameView:
+			return changeTarget
+		case AddPassView, AddConfirmView:
+			return changeOldPass
+		}
+		return ""
+	}
+
+	if otpMode || name != AddPassView {
+		return ""
+	}
+
+	password, err := app.GenerateRandomPassword()
+	if err != nil {
+		return ""
+	}
+	return password
+}
+
 func addPasswordLayout(g *gocui.Gui) error {
 	views, titles := activeAddFields()
 
@@ -860,6 +892,13 @@ func addPasswordLayout(g *gocui.Gui) error {
 
 			if name != AddNameView {
 				v.Mask = '*'
+			}
+
+			if def := defaultFieldValue(name); def != "" {
+				v.WriteString(def)
+				if err := v.SetCursor(len(def), 0); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -949,12 +988,12 @@ func submitAddOTP(g *gocui.Gui, v *gocui.View) error {
 }
 
 func submitChangePassword(g *gocui.Gui, v *gocui.View) error {
-	name := changeTarget
+	name := addFieldValue(g, AddNameView)
 	password := addFieldValue(g, AddPassView)
 	confirmation := addFieldValue(g, AddConfirmView)
 
-	if password == "" {
-		showFeedback(g, "Password can't be empty")
+	if name == "" || password == "" {
+		showFeedback(g, "Password name and password can't be empty")
 		return nil
 	}
 
@@ -963,12 +1002,21 @@ func submitChangePassword(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	success, err := app.ChangePassword(name, password)
+	success, err := app.ChangePassword(changeTarget, password)
 	if err != nil || !success {
-		showFeedback(g, fmt.Sprintf("Error happened while changing `%s`", name))
+		showFeedback(g, fmt.Sprintf("Error happened while changing `%s`", changeTarget))
 		return closeAddPassword(g, v)
 	}
 
+	if name != changeTarget {
+		if success, err := app.RenamePassword(changeTarget, name); err != nil || !success {
+			refreshPasswordsOnScreen()
+			showFeedback(g, fmt.Sprintf("Password changed, but renaming to `%s` failed", name))
+			return closeAddPassword(g, v)
+		}
+	}
+
+	refreshPasswordsOnScreen()
 	showFeedback(g, fmt.Sprintf("Password for `%s` changed!", name))
 
 	return closeAddPassword(g, v)
@@ -985,5 +1033,6 @@ func closeAddPassword(g *gocui.Gui, v *gocui.View) error {
 func resetChangeMode() {
 	changeMode = false
 	changeTarget = ""
+	changeOldPass = ""
 	selectedRow = 0
 }
