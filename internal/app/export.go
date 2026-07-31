@@ -9,10 +9,13 @@ import (
 	"time"
 )
 
-func ExportPasswords() (string, error) {
-	names := ReadPasswordsLookup()
+func ExportPasswords(targets ...string) (string, error) {
+	names := targets
 	if len(names) == 0 {
-		return "", fmt.Errorf("error: no passwords to export")
+		names = ReadPasswordsLookup()
+		if len(names) == 0 {
+			return "", fmt.Errorf("error: no passwords to export")
+		}
 	}
 
 	var buf bytes.Buffer

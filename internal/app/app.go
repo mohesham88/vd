@@ -20,6 +20,7 @@ func printHelp() {
 	fmt.Println("  register Register a new GPG key")
 	fmt.Println("  ls       List stored passwords")
 	fmt.Println("  gen      Generate a random password to clipboard")
+	fmt.Println("  export   Export passwords to a CSV file in the home directory [password_name]")
 }
 
 func Run() int {
@@ -189,6 +190,28 @@ func Run() int {
 
 		fmt.Println("New generated password has been copied to clipboard")
 
+	case "export":
+		if len(os.Args) > 3 {
+			fmt.Println("Usage: vd export [password_name]")
+			return 1
+		}
+
+		var targets []string
+		if len(os.Args) == 3 {
+			if !slices.Contains(ReadPasswordsLookup(), os.Args[2]) {
+				fmt.Printf("Error: password for %s doesn't exist\n", os.Args[2])
+				return 1
+			}
+			targets = append(targets, os.Args[2])
+		}
+
+		filename, err := ExportPasswords(targets...)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+
+		fmt.Printf("Passwords exported to %s\n", filename)
 	case "--help":
 		printHelp()
 		return 0
