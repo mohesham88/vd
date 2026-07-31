@@ -150,6 +150,47 @@ func readQR(imagePath string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+func ImportOTPQR(imagePath string) (string, error) {
+	raw, err := readQR(imagePath)
+	if err != nil {
+		return "", err
+	}
+
+	raw = strings.Split(raw, "\n")[0]
+
+	if strings.HasPrefix(raw, "otpauth-migration://") {
+		return "", fmt.Errorf("error: this is an export QR, use /importotp instead")
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "otpauth" {
+		return "", fmt.Errorf("error: no OTP QR code found in %s", imagePath)
+	}
+
+	secret := parsed.Query().Get("secret")
+	if secret == "" {
+		return "", fmt.Errorf("error: the QR code has no secret key")
+	}
+
+	label := strings.TrimPrefix(parsed.Path, "/")
+	issuer := parsed.Query().Get("issuer")
+
+	if issuer != "" {
+		label = strings.TrimPrefix(label, issuer+":")
+	}
+
+	name := label
+	if issuer != "" {
+		name = issuer + "-" + label
+	}
+
+	if err := SavePassword(Credentials{Name: name, Password: secret, IsOTP: true}); err != nil {
+		return "", err
+	}
+
+	return name, nil
+}
+
 func ImportGoogleOTP(imagePath string) ([]string, error) {
 	migrationURL, err := readQR(imagePath)
 	if err != nil {
