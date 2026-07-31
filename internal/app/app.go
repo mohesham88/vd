@@ -8,19 +8,23 @@ import (
 	"slices"
 )
 
+func printHelp() {
+	fmt.Println("Usage: vd <command>")
+	fmt.Println("Commands:")
+	fmt.Println("  vd       Open the TUI")
+	fmt.Println("  add      Add a new password [--name password_name --password password]")
+	fmt.Println("  get      Copy a password to clipboard")
+	fmt.Println("  delete   Delete a stored password [-f|--force]")
+	fmt.Println("  change   Change a stored password")
+	fmt.Println("  otp      Add an OTP or copy its code [add|get otp_name]")
+	fmt.Println("  register Register a new GPG key")
+	fmt.Println("  ls       List stored passwords")
+	fmt.Println("  gen      Generate a random password to clipboard")
+}
+
 func Run() int {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: vd <command>")
-		fmt.Println("Commands:")
-		fmt.Println("  vd       Open the TUI")
-		fmt.Println("  add      Add a new password [--name password_name --password password]")
-		fmt.Println("  get      Copy a password to clipboard")
-		fmt.Println("  delete   Delete a stored password [-f|--force]")
-		fmt.Println("  change   Change a stored password")
-		fmt.Println("  otp      Add an OTP or copy its code [add|get otp_name]")
-		fmt.Println("  register Register a new GPG key")
-		fmt.Println("  ls       List stored passwords")
-		fmt.Println("  gen      Generate a random password to clipboard")
+		printHelp()
 		return 0
 	}
 
@@ -183,23 +187,15 @@ func Run() int {
 			return 1
 		}
 
-		fmt.Println("New random password has been copied to clipboard")
+		fmt.Println("New generated password has been copied to clipboard")
 
-	case "help":
-		fmt.Println("Usage: vd <command>")
-		fmt.Println("Commands:")
-		fmt.Println("  vd       Open the TUI")
-		fmt.Println("  add      Add a new password [--name password_name --password password]")
-		fmt.Println("  get      Copy a password to clipboard")
-		fmt.Println("  delete   Delete a stored password [-f|--force]")
-		fmt.Println("  change   Change a stored password")
-		fmt.Println("  otp      Add an OTP or copy its code [add|get otp_name]")
-		fmt.Println("  register Register a new GPG key")
-		fmt.Println("  ls       List stored passwords")
-		fmt.Println("  gen      Generate a random password to clipboard")
+	case "--help":
+		printHelp()
 		return 0
 	default:
 		fmt.Println("Unknown command:", os.Args[1])
+		fmt.Println()
+		printHelp()
 		return 1
 	}
 
