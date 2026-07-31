@@ -675,7 +675,11 @@ func handleCommand(g *gocui.Gui) error {
 			return err
 		}
 
-		app.CopyToClipboard(randomPassword)
+		if err := app.CopyToClipboard(randomPassword); err != nil {
+			showFeedback(g, "Error happened during copying to clipboard")
+			return nil
+		}
+
 		showFeedback(g, "Generated password copied to clipboard!")
 	case "/add":
 		pushToViewStack(AddPasswordView)
