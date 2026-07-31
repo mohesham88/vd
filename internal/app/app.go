@@ -21,6 +21,7 @@ func printHelp() {
 	fmt.Println("  ls       List stored passwords")
 	fmt.Println("  gen      Generate a random password to clipboard")
 	fmt.Println("  export   Export passwords to a CSV file in the home directory [password_name]")
+	fmt.Println("  import   Import OTP secrets from a Google Authenticator export QR image [otp google path/to/img.jpg]")
 }
 
 func Run() int {
@@ -212,6 +213,31 @@ func Run() int {
 		}
 
 		fmt.Printf("Passwords exported to %s\n", filename)
+	case "import":
+		if len(os.Args) != 5 || os.Args[2] != "otp" {
+			fmt.Println("Usage: vd import otp google path/to/img.jpg")
+			return 1
+		}
+
+		if os.Args[3] != "google" {
+			fmt.Printf("%s is not supported yet\n", os.Args[3])
+			return 1
+		}
+
+		added, err := ImportGoogleOTP(os.Args[4])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+
+		if len(added) == 0 {
+			fmt.Println("No new OTPs were imported")
+			return 1
+		}
+
+		for _, name := range added {
+			fmt.Printf("OTP for %s added successfully\n", name)
+		}
 	case "--help":
 		printHelp()
 		return 0
