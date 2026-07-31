@@ -755,7 +755,7 @@ func handleCommand(g *gocui.Gui) error {
 			return nil
 		}
 
-		showFeedback(g, fmt.Sprintf("Passwords exported to `%s`", filename), 3000)
+		showFeedback(g, fmt.Sprintf("Passwords exported to `%s`", filename), 60)
 	case "/importotp":
 		openMenu("Select source", importProviders, selectImportProvider)
 	case "/change":
