@@ -944,7 +944,7 @@ func togglePlaceholder(g *gocui.Gui, v *gocui.View, x0, y0, x1 int) error {
 		filled = true
 	}
 
-	if !filled {
+	if !filled && !otpMode {
 		return renderPlaceholder(g, "ctrl+g to generate password", x0, y0, x1)
 	}
 
