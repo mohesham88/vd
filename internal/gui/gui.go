@@ -143,7 +143,15 @@ func Run() {
 			log.Panicln(err)
 		}
 
+		if err := g.SetKeybinding(name, gocui.KeyArrowDown, gocui.ModNone, nextAddField); err != nil {
+			log.Panicln(err)
+		}
+
 		if err := g.SetKeybinding(name, gocui.KeyBacktab, gocui.ModNone, prevAddField); err != nil {
+			log.Panicln(err)
+		}
+
+		if err := g.SetKeybinding(name, gocui.KeyArrowUp, gocui.ModNone, prevAddField); err != nil {
 			log.Panicln(err)
 		}
 
@@ -152,6 +160,12 @@ func Run() {
 		}
 
 		if err := g.SetKeybinding(name, gocui.KeyEsc, gocui.ModNone, closeAddPassword); err != nil {
+			log.Panicln(err)
+		}
+	}
+
+	for _, name := range []string{AddNameView, AddPassView, AddConfirmView} {
+		if err := g.SetKeybinding(name, gocui.KeyCtrlG, gocui.ModNone, generateAddPassword); err != nil {
 			log.Panicln(err)
 		}
 	}
@@ -344,7 +358,8 @@ func passwordsLayout(g *gocui.Gui) error {
 
 	// Show the placeholder only in the search mode
 	if !deleteMode && !changeMode {
-		if err := renderPlaceholder(g, x0, y0, x1); err != nil {
+		searchPlaceholder := "Search passwords, or type / for commands"
+		if err := renderPlaceholder(g, searchPlaceholder, x0, y0, x1); err != nil {
 			return err
 		}
 	}
@@ -352,7 +367,7 @@ func passwordsLayout(g *gocui.Gui) error {
 	return nil
 }
 
-func renderPlaceholder(g *gocui.Gui, x0, y0, x1 int) error {
+func renderPlaceholder(g *gocui.Gui, placeholderMsg string, x0, y0, x1 int) error {
 	if query != "" {
 		if _, err := g.View(PlaceholderView); err == nil {
 			return g.DeleteView(PlaceholderView)
@@ -369,9 +384,8 @@ func renderPlaceholder(g *gocui.Gui, x0, y0, x1 int) error {
 	pv.FgColor = gocui.ColorDefault | gocui.AttrDim
 
 	pv.Clear()
-	searchPlaceholder := "Search passwords, or type / for commands"
 
-	fmt.Fprint(pv, searchPlaceholder)
+	fmt.Fprint(pv, placeholderMsg)
 
 	return nil
 }
@@ -848,29 +862,18 @@ func activeAddFields() ([]string, []string) {
 }
 
 func defaultFieldValue(name string) string {
-	if !changeMode {
+	if otpMode {
 		return ""
 	}
 
-	if changeMode {
-		switch name {
-		case AddNameView:
-			return changeTarget
-		case AddPassView, AddConfirmView:
-			return changeOldPass
-		}
-		return ""
+	switch name {
+	case AddNameView:
+		return changeTarget
+	case AddPassView, AddConfirmView:
+		return changeOldPass
 	}
 
-	if otpMode || name != AddPassView {
-		return ""
-	}
-
-	password, err := app.GenerateRandomPassword()
-	if err != nil {
-		return ""
-	}
-	return password
+	return ""
 }
 
 func addPasswordLayout(g *gocui.Gui) error {
@@ -902,15 +905,23 @@ func addPasswordLayout(g *gocui.Gui) error {
 				v.Mask = '*'
 			}
 
-			if def := defaultFieldValue(name); def != "" {
-				v.WriteString(def)
-				if err := v.SetCursor(len(def), 0); err != nil {
-					return err
+			if changeMode {
+				if def := defaultFieldValue(name); def != "" {
+					v.WriteString(def)
+					if err := v.SetCursor(len(def), 0); err != nil {
+						return err
+					}
 				}
 			}
 		}
 
 		v.Title = titles[i]
+
+		if name == AddPassView && !changeMode {
+			if err := togglePlaceholder(g, v, x0, vy0, x1); err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := renderFeedback(g, x0, y0, x1); err != nil {
@@ -919,6 +930,57 @@ func addPasswordLayout(g *gocui.Gui) error {
 
 	_, err := g.SetCurrentView(views[addFocus])
 	return err
+}
+
+func togglePlaceholder(g *gocui.Gui, v *gocui.View, x0, y0, x1 int) error {
+	filled := strings.TrimRight(v.Buffer(), "\r\n") != ""
+
+	if cv, err := g.View(AddConfirmView); err == nil && strings.TrimRight(cv.Buffer(), "\r\n") != "" {
+		filled = true
+	}
+
+	if !filled {
+		return renderPlaceholder(g, "ctrl+g to generate password", x0, y0, x1)
+	}
+
+	if _, err := g.View(PlaceholderView); err == nil {
+		return g.DeleteView(PlaceholderView)
+	}
+
+	return nil
+}
+
+func generateAddPassword(g *gocui.Gui, v *gocui.View) error {
+	if otpMode {
+		return nil
+	}
+
+	password, err := app.GenerateRandomPassword()
+	if err != nil {
+		showFeedback(g, "Error happened during generating random password")
+		return nil
+	}
+
+	for _, name := range []string{AddPassView, AddConfirmView} {
+		fv, err := g.View(name)
+		if err != nil {
+			continue
+		}
+
+		fv.Mask = 0
+		fv.Clear()
+		fv.WriteString(password)
+
+		if err := fv.SetOrigin(0, 0); err != nil {
+			return err
+		}
+
+		if err := fv.SetCursor(len(password), 0); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func nextAddField(g *gocui.Gui, v *gocui.View) error {
