@@ -110,21 +110,28 @@ func LoadCredentials(credentialsName string) (Credentials, error) {
 	return creds, nil
 }
 
-func GetPassword(credentialsName string) error {
+func PasswordValue(credentialsName string) (string, error) {
 	creds, err := LoadCredentials(credentialsName)
 	if err != nil {
-		return err
+		return "", err
 	}
-
-	value := creds.Password
 
 	if creds.IsOTP {
 		code, err := totp.GetTotpCode(creds.Password, time.Now(), 6)
 		if err != nil {
 			log.Println("Error generating OTP code:", err)
-			return fmt.Errorf("error generating OTP code: %w", err)
+			return "", fmt.Errorf("error generating OTP code: %w", err)
 		}
-		value = code
+		return code, nil
+	}
+
+	return creds.Password, nil
+}
+
+func GetPassword(credentialsName string) error {
+	value, err := PasswordValue(credentialsName)
+	if err != nil {
+		return err
 	}
 
 	if err := CopyToClipboard(value); err != nil {
@@ -132,7 +139,7 @@ func GetPassword(credentialsName string) error {
 		return err
 	}
 
-	log.Printf("Password for `%s` copied to clipboard", creds.Name)
+	log.Printf("Password for `%s` copied to clipboard", credentialsName)
 	return nil
 }
 

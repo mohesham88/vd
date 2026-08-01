@@ -72,6 +72,7 @@ var Commands = []Command{
 	{"/export", "Export passwords to a file"},
 	{"/importotp", "Import OTPs batch from another authenticator"},
 	{"/register", "Register a new GPG key"},
+	{"/settings", "Change the app settings"},
 }
 
 var importProviders = []string{"Google Authenticator Export QR Code"}
@@ -738,6 +739,17 @@ func handleGetPassword(g *gocui.Gui) error {
 		pushToViewStack(GpgPassphraseView)
 	}
 
+	if app.LoadSettings().ShowPassword {
+		value, err := app.PasswordValue(passwordName)
+		if err != nil {
+			showFeedback(g, fmt.Sprintf("Error: %v", err))
+			return nil
+		}
+
+		showFeedback(g, fmt.Sprintf("%s: %s", passwordName, value), 30)
+		return nil
+	}
+
 	if err := app.GetPassword(passwordName); err != nil {
 		showFeedback(g, fmt.Sprintf("Error: %v", err))
 		return nil
@@ -794,6 +806,8 @@ func handleCommand(g *gocui.Gui) error {
 		showFeedback(g, fmt.Sprintf("Passwords exported to `%s`", filename), 60)
 	case "/importotp":
 		openMenu("Select source", importProviders, selectImportProvider)
+	case "/settings":
+		openMenu("Settings", settingsItems(), toggleShowPassword)
 	case "/register":
 		if path, ok := app.RegisteredEmailPath(); ok {
 			showFeedback(g, fmt.Sprintf("You already registered with `%s`", path))
@@ -976,6 +990,29 @@ func importPasteLayout(g *gocui.Gui) error {
 	}
 
 	return renderFeedback(g, x0, y0, x1)
+}
+
+func settingsItems() []string {
+	state := "Clipboard"
+	if app.LoadSettings().ShowPassword {
+		state = "Show Password"
+	}
+
+	return []string{fmt.Sprintf("%-12s [%s]", "Toggle copying password to clipboard", state)}
+}
+
+func toggleShowPassword(g *gocui.Gui) error {
+	settings := app.LoadSettings()
+	settings.ShowPassword = !settings.ShowPassword
+
+	if err := app.SaveSettings(settings); err != nil {
+		showFeedback(g, err.Error())
+		return nil
+	}
+
+	menuItems = settingsItems()
+
+	return nil
 }
 
 func selectImportProvider(g *gocui.Gui) error {
