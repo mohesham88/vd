@@ -27,6 +27,8 @@ const (
 	ChangePasswordView = "changepasswordview"
 	BannerView         = "bannerview"
 	PlaceholderView    = "placeholderview"
+	MenuView           = "menuview"
+	ImportPasteView    = "importpasteview"
 )
 
 const maxVisibleRows = 12
@@ -50,7 +52,24 @@ var (
 	addFocus     int
 )
 
-var Commands = []string{"/add", "/addotp", "/delete", "/change", "/gen", "/export"}
+type Command struct {
+	Name        string
+	Description string
+}
+
+var Commands = []Command{
+	{"/add", "Add a new password"},
+	{"/addotp", "Add a new OTP"},
+	{"/delete", "Delete a password"},
+	{"/change", "Change a password"},
+	{"/gen", "Generate a random password"},
+	{"/export", "Export passwords to a file"},
+	{"/importotp", "Import OTPs batch from another authenticator"},
+}
+
+var importProviders = []string{"Google Authenticator Export QR Code"}
+
+var addOTPMethods = []string{"QR code", "Secret key"}
 
 var (
 	passphraseMsg string
@@ -70,6 +89,12 @@ var (
 	changeTarget  string
 	changeOldPass string
 	otpMode       bool
+	importImage   string
+	importing     bool
+	menuTitle     string
+	menuItems     []string
+	menuSelect    func(g *gocui.Gui) error
+	qrMode        string
 )
 
 func refreshPasswordsOnScreen() {
@@ -133,6 +158,34 @@ func Run() {
 		log.Panicln(err)
 	}
 
+	if err := g.SetKeybinding(MenuView, gocui.KeyArrowDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error { return moveDown() }); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(MenuView, gocui.KeyArrowUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error { return moveUp() }); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(MenuView, gocui.KeyEnter, gocui.ModNone, handleMenuSelect); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(MenuView, gocui.KeyEsc, gocui.ModNone, cancelMenu); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(ImportPasteView, gocui.KeyCtrlV, gocui.ModNone, pasteImportImage); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(ImportPasteView, gocui.KeyEnter, gocui.ModNone, submitImport); err != nil {
+		log.Panicln(err)
+	}
+
+	if err := g.SetKeybinding(ImportPasteView, gocui.KeyEsc, gocui.ModNone, cancelImportPaste); err != nil {
+		log.Panicln(err)
+	}
+
 	for _, name := range addViews {
 		if err := g.SetKeybinding(name, gocui.KeyTab, gocui.ModNone, nextAddField); err != nil {
 			log.Panicln(err)
@@ -184,6 +237,10 @@ func layout(g *gocui.Gui) error {
 		return deleteConfirmLayout(g)
 	case ChangePasswordView:
 		return addPasswordLayout(g)
+	case MenuView:
+		return menuLayout(g)
+	case ImportPasteView:
+		return importPasteLayout(g)
 	default:
 		return nil
 	}
@@ -349,7 +406,7 @@ func passwordsLayout(g *gocui.Gui) error {
 	// Show the placeholder only in the search mode
 	if !deleteMode && !changeMode {
 		searchPlaceholder := "Search passwords, or type / for commands"
-		if err := renderPlaceholder(g, searchPlaceholder, x0, y0, x1); err != nil {
+		if err := renderPlaceholder(g, searchPlaceholder, query == "", x0, y0, x1); err != nil {
 			return err
 		}
 	}
@@ -357,8 +414,8 @@ func passwordsLayout(g *gocui.Gui) error {
 	return nil
 }
 
-func renderPlaceholder(g *gocui.Gui, placeholderMsg string, x0, y0, x1 int) error {
-	if query != "" {
+func renderPlaceholder(g *gocui.Gui, placeholderMsg string, show bool, x0, y0, x1 int) error {
+	if !show {
 		if _, err := g.View(PlaceholderView); err == nil {
 			return g.DeleteView(PlaceholderView)
 		}
@@ -503,7 +560,9 @@ func renderRows(g *gocui.Gui) error {
 	isCommands := isCommandsQuery()
 
 	if isCommands {
-		entries = filterCommands()
+		for _, c := range filterCommands() {
+			entries = append(entries, commandLabel(c))
+		}
 	} else {
 		entries = filterPasswords()
 	}
@@ -596,12 +655,21 @@ func entryLabel(name string) string {
 	return name
 }
 
-func filterCommands() []string {
-	matches := fuzzy.Find(query, Commands)
-	entries := make([]string, len(matches))
+func commandLabel(c Command) string {
+	return fmt.Sprintf("%-12s %s", c.Name, c.Description)
+}
+
+func filterCommands() []Command {
+	names := make([]string, len(Commands))
+	for i, c := range Commands {
+		names[i] = c.Name
+	}
+
+	matches := fuzzy.Find(query, names)
+	entries := make([]Command, len(matches))
 
 	for i, m := range matches {
-		entries[i] = m.Str
+		entries[i] = Commands[m.Index]
 	}
 
 	return entries
@@ -680,7 +748,7 @@ func handleCommand(g *gocui.Gui) error {
 		return nil
 	}
 
-	commandName := commands[selectedRow]
+	commandName := commands[selectedRow].Name
 
 	switch commandName {
 	case "/gen":
@@ -699,9 +767,7 @@ func handleCommand(g *gocui.Gui) error {
 	case "/add":
 		pushToViewStack(AddPasswordView)
 	case "/addotp":
-		otpMode = true
-		addFocus = 0
-		pushToViewStack(AddPasswordView)
+		openMenu("How do you want to add the OTP?", addOTPMethods, selectAddOTPMethod)
 	case "/delete":
 		deleteMode = true
 		selectedRow = 0
@@ -713,11 +779,15 @@ func handleCommand(g *gocui.Gui) error {
 			return nil
 		}
 
-		showFeedback(g, fmt.Sprintf("Passwords exported to `%s`", filename))
+		showFeedback(g, fmt.Sprintf("Passwords exported to `%s`", filename), 60)
+	case "/importotp":
+		openMenu("Select source", importProviders, selectImportProvider)
 	case "/change":
 		changeMode = true
 		selectedRow = 0
 		showFeedback(g, "Choose the password you want to change", 3000)
+	default:
+		showFeedback(g, fmt.Sprintf("Unknown command `%s`", commandName))
 	}
 
 	return nil
@@ -757,6 +827,264 @@ func handleDeletePassword(g *gocui.Gui) error {
 	deleteTarget = entries[selectedRow]
 	pushToViewStack(DeleteConfirmView)
 
+	return nil
+}
+
+func menuLayout(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	w := 60
+	h := 2
+	x0 := (maxX - w) / 2
+	y0 := (maxY - h) / 2
+	x1 := x0 + w
+	y1 := y0 + h
+
+	g.Cursor = false
+
+	v, err := g.SetView(MenuView, x0, y0, x1, y1, 0)
+	if err != nil {
+		if !errors.Is(err, gocui.ErrUnknownView) {
+			return err
+		}
+
+		if _, err := g.SetCurrentView(MenuView); err != nil {
+			return err
+		}
+	}
+
+	v.Frame = false
+	v.FgColor = gocui.ColorMagenta
+	v.Clear()
+	fmt.Fprint(v, menuTitle)
+
+	rowCount = len(menuItems)
+	if selectedRow >= rowCount {
+		selectedRow = rowCount - 1
+	}
+	if selectedRow < 0 {
+		selectedRow = 0
+	}
+
+	for i, item := range menuItems {
+		by0 := y1 + i*2
+
+		bv, err := g.SetView(fmt.Sprintf("menurow%d", i), x0, by0, x1, by0+2, 0)
+		if err != nil && !errors.Is(err, gocui.ErrUnknownView) {
+			return err
+		}
+
+		bv.Frame = false
+		if i == selectedRow {
+			bv.BgColor = gocui.ColorMagenta
+			bv.FgColor = gocui.ColorBlack
+		} else {
+			bv.BgColor = gocui.ColorWhite
+			bv.FgColor = gocui.ColorBlack
+		}
+
+		bv.Clear()
+		fmt.Fprint(bv, item)
+	}
+
+	return renderFeedback(g, x0, y0, x1)
+}
+
+func openMenu(title string, items []string, onSelect func(g *gocui.Gui) error) {
+	menuTitle = title
+	menuItems = items
+	menuSelect = onSelect
+	selectedRow = 0
+	pushToViewStack(MenuView)
+}
+
+func handleMenuSelect(g *gocui.Gui, v *gocui.View) error {
+	return menuSelect(g)
+}
+
+func cancelMenu(g *gocui.Gui, v *gocui.View) error {
+	selectedRow = 0
+	popViewStack()
+	return nil
+}
+
+func openQRPaste(mode string) {
+	qrMode = mode
+	importImage = ""
+	popViewStack()
+	pushToViewStack(ImportPasteView)
+}
+
+func importPasteLayout(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	w := 60
+	h := 2
+	x0 := (maxX - w) / 2
+	y0 := (maxY - h) / 2
+	x1 := x0 + w
+
+	g.Cursor = true
+
+	v, err := g.SetView(ImportPasteView, x0, y0, x1, y0+h, 0)
+	if err != nil {
+		if !errors.Is(err, gocui.ErrUnknownView) {
+			return err
+		}
+
+		v.Editable = true
+		v.Wrap = false
+		v.Editor = gocui.EditorFunc(passphraseEditor)
+
+		if _, err := g.SetCurrentView(ImportPasteView); err != nil {
+			return err
+		}
+	}
+
+	title := "Google Authenticator"
+	placeholder := "Paste Google Export QR image here (ctrl+v)"
+
+	if qrMode == "addotp" {
+		title = "QR code"
+		placeholder = "Paste the OTP QR image here (ctrl+v)"
+	}
+
+	v.Title = title
+
+	empty := strings.TrimRight(v.Buffer(), "\r\n") == ""
+	if err := renderPlaceholder(g, placeholder, empty, x0, y0, x1); err != nil {
+		return err
+	}
+
+	return renderFeedback(g, x0, y0, x1)
+}
+
+func selectImportProvider(g *gocui.Gui) error {
+	if !strings.HasPrefix(menuItems[selectedRow], "Google Authenticator") {
+		showFeedback(g, "Not supported yet")
+		return nil
+	}
+
+	openQRPaste("import")
+
+	return nil
+}
+
+func selectAddOTPMethod(g *gocui.Gui) error {
+	if menuItems[selectedRow] == "QR code" {
+		openQRPaste("addotp")
+		return nil
+	}
+
+	otpMode = true
+	addFocus = 0
+	popViewStack()
+	pushToViewStack(AddPasswordView)
+
+	return nil
+}
+
+func pasteImportImage(g *gocui.Gui, v *gocui.View) error {
+	path, err := app.GetImageFromClipboard()
+	if err != nil {
+		showFeedback(g, err.Error())
+		return nil
+	}
+
+	importImage = path
+
+	v.Clear()
+	v.WriteString("[Image #1]")
+	if err := v.SetOrigin(0, 0); err != nil {
+		return err
+	}
+
+	return v.SetCursor(len("[Image #1]"), 0)
+}
+
+func submitImport(g *gocui.Gui, v *gocui.View) error {
+	if importing {
+		return nil
+	}
+
+	path := importImage
+	if path == "" {
+		path = strings.TrimSpace(getViewContent(g, ImportPasteView))
+	}
+
+	if path == "" {
+		showFeedback(g, "Paste the QR image first")
+		return nil
+	}
+
+	importing = true
+
+	if qrMode == "addotp" {
+		showFeedback(g, "Adding the OTP code...", 3000)
+
+		go func() {
+			name, err := app.ImportOTPQR(path)
+
+			g.Update(func(g *gocui.Gui) error {
+				importing = false
+
+				if err != nil {
+					showFeedback(g, err.Error())
+					return nil
+				}
+
+				closeImport(g, nil)
+				refreshPasswordsOnScreen()
+
+				showFeedback(g, fmt.Sprintf("OTP for `%s` saved!", name))
+				return nil
+			})
+		}()
+
+		return nil
+	}
+
+	showFeedback(g, "Importing OTP codes...", 3000)
+
+	go func() {
+		added, err := app.ImportGoogleOTP(path)
+
+		g.Update(func(g *gocui.Gui) error {
+			importing = false
+
+			if err != nil {
+				showFeedback(g, err.Error())
+				return nil
+			}
+
+			closeImport(g, nil)
+			refreshPasswordsOnScreen()
+
+			if len(added) == 0 {
+				showFeedback(g, "No new OTPs were imported")
+				return nil
+			}
+
+			showFeedback(g, fmt.Sprintf("Imported %d OTP(s)!", len(added)))
+			return nil
+		})
+	}()
+
+	return nil
+}
+
+func closeImport(g *gocui.Gui, v *gocui.View) error {
+	importImage = ""
+	selectedRow = 0
+	popViewStack()
+	return nil
+}
+
+func cancelImportPaste(g *gocui.Gui, v *gocui.View) error {
+	if importing {
+		return nil
+	}
+
+	importImage = ""
+	popViewStack()
 	return nil
 }
 
@@ -954,7 +1282,7 @@ func togglePlaceholder(g *gocui.Gui, v *gocui.View, x0, y0, x1 int) error {
 	}
 
 	if !filled && !otpMode {
-		return renderPlaceholder(g, "ctrl+g to generate password", x0, y0, x1)
+		return renderPlaceholder(g, "ctrl+g to generate password", query == "", x0, y0, x1)
 	}
 
 	if _, err := g.View(PlaceholderView); err == nil {
