@@ -29,6 +29,8 @@ const (
 	PlaceholderView    = "placeholderview"
 	MenuView           = "menuview"
 	ImportPasteView    = "importpasteview"
+	RegisterView       = "registerview"
+	RegisterEmailView  = "registeremailview"
 )
 
 const maxVisibleRows = 12
@@ -49,7 +51,11 @@ var (
 	changeTitles = []string{" Password Name ", " New Password ", " New Password Confirmation "}
 	otpViews     = []string{AddNameView, AddPassView}
 	otpTitles    = []string{" OTP Name ", " OTP Secret Key "}
-	addFocus     int
+
+	registerViews  = []string{AddNameView, RegisterEmailView, AddPassView, AddConfirmView}
+	registerTitles = []string{" Name ", " Email ", " Master Password ", " Master Password Confirmation "}
+
+	addFocus int
 )
 
 type Command struct {
@@ -65,6 +71,7 @@ var Commands = []Command{
 	{"/gen", "Generate a random password"},
 	{"/export", "Export passwords to a file"},
 	{"/importotp", "Import OTPs batch from another authenticator"},
+	{"/register", "Register a new GPG key"},
 }
 
 var importProviders = []string{"Google Authenticator Export QR Code"}
@@ -89,6 +96,8 @@ var (
 	changeTarget  string
 	changeOldPass string
 	otpMode       bool
+	registerMode  bool
+	registering   bool
 	importImage   string
 	importing     bool
 	menuTitle     string
@@ -106,7 +115,8 @@ func Run() {
 	app.NoTerminalPrompt = true
 
 	refreshPasswordsOnScreen()
-	locked := passwords == nil
+	_, registered := app.RegisteredEmailPath()
+	locked := registered && passwords == nil
 
 	g, err := gocui.NewGui(gocui.OutputNormal, true)
 	if err != nil {
@@ -186,7 +196,7 @@ func Run() {
 		log.Panicln(err)
 	}
 
-	for _, name := range addViews {
+	for _, name := range append(slices.Clone(addViews), RegisterEmailView) {
 		if err := g.SetKeybinding(name, gocui.KeyTab, gocui.ModNone, nextAddField); err != nil {
 			log.Panicln(err)
 		}
@@ -241,6 +251,8 @@ func layout(g *gocui.Gui) error {
 		return menuLayout(g)
 	case ImportPasteView:
 		return importPasteLayout(g)
+	case RegisterView:
+		return addPasswordLayout(g)
 	default:
 		return nil
 	}
@@ -782,6 +794,15 @@ func handleCommand(g *gocui.Gui) error {
 		showFeedback(g, fmt.Sprintf("Passwords exported to `%s`", filename), 60)
 	case "/importotp":
 		openMenu("Select source", importProviders, selectImportProvider)
+	case "/register":
+		if path, ok := app.RegisteredEmailPath(); ok {
+			showFeedback(g, fmt.Sprintf("You already registered with `%s`", path))
+			return nil
+		}
+
+		registerMode = true
+		addFocus = 0
+		pushToViewStack(RegisterView)
 	case "/change":
 		changeMode = true
 		selectedRow = 0
@@ -1196,6 +1217,9 @@ func activeAddPasswordViewFields() ([]string, []string) {
 	if otpMode {
 		return otpViews, otpTitles
 	}
+	if registerMode {
+		return registerViews, registerTitles
+	}
 	return addViews, addTitles
 }
 
@@ -1241,7 +1265,7 @@ func addPasswordLayout(g *gocui.Gui) error {
 			v.Wrap = false
 			v.Editor = gocui.EditorFunc(passphraseEditor)
 
-			if name != AddNameView {
+			if name != AddNameView && name != RegisterEmailView {
 				v.Mask = '*'
 			}
 
@@ -1356,6 +1380,10 @@ func submitAddPassword(g *gocui.Gui, v *gocui.View) error {
 		return submitAddOTP(g, v)
 	}
 
+	if registerMode {
+		return submitRegister(g, v)
+	}
+
 	name := getViewContent(g, AddNameView)
 	password := getViewContent(g, AddPassView)
 	confirmation := getViewContent(g, AddConfirmView)
@@ -1401,6 +1429,52 @@ func submitAddOTP(g *gocui.Gui, v *gocui.View) error {
 	return closeAddPassword(g, v)
 }
 
+func submitRegister(g *gocui.Gui, v *gocui.View) error {
+	if registering {
+		return nil
+	}
+
+	name := getViewContent(g, AddNameView)
+	email := getViewContent(g, RegisterEmailView)
+	password := getViewContent(g, AddPassView)
+	confirmation := getViewContent(g, AddConfirmView)
+
+	if name == "" || email == "" || password == "" {
+		showFeedback(g, "Name, email and master password can't be empty")
+		return nil
+	}
+
+	if password != confirmation {
+		showFeedback(g, "Master passwords don't match")
+		return nil
+	}
+
+	registering = true
+	showFeedback(g, "Generating the GPG key, this may take a while...", 3000)
+
+	go func() {
+		err := app.Register(name, email, password)
+
+		g.Update(func(g *gocui.Gui) error {
+			registering = false
+
+			if err != nil {
+				showFeedback(g, err.Error())
+				return nil
+			}
+
+			closeAddPassword(g, nil)
+			app.PassphraseCache = password
+			refreshPasswordsOnScreen()
+
+			showFeedback(g, fmt.Sprintf("Registration complete for `%s`!", email))
+			return nil
+		})
+	}()
+
+	return nil
+}
+
 func submitChangePassword(g *gocui.Gui, v *gocui.View) error {
 	name := getViewContent(g, AddNameView)
 	password := getViewContent(g, AddPassView)
@@ -1436,8 +1510,13 @@ func submitChangePassword(g *gocui.Gui, v *gocui.View) error {
 }
 
 func closeAddPassword(g *gocui.Gui, v *gocui.View) error {
+	if registering {
+		return nil
+	}
+
 	addFocus = 0
 	otpMode = false
+	registerMode = false
 	resetChangeMode()
 	popViewStack()
 	return nil

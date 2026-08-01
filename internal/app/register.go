@@ -9,24 +9,52 @@ import (
 	"golang.org/x/term"
 )
 
-func register() {
+func RegisteredEmailPath() (string, bool) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		log.Println("Error getting home directory:", err)
-		return
+		return "", false
+	}
+
+	emailPath := filepath.Join(home, ".local", "share", "vd", "gpg_email.txt")
+	if _, err := os.Stat(emailPath); err != nil {
+		return "", false
+	}
+
+	return emailPath, true
+}
+
+func Register(name, email, password string) error {
+	if path, ok := RegisteredEmailPath(); ok {
+		return fmt.Errorf("you already registered with %s", path)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %v", err)
 	}
 
 	vdDir := filepath.Join(home, ".local", "share", "vd")
 
 	if err := os.MkdirAll(vdDir, 0o700); err != nil {
-		log.Println("Error creating vd directory:", err)
-		return
+		return fmt.Errorf("error creating vd directory: %v", err)
 	}
 
 	emailPath := filepath.Join(vdDir, "gpg_email.txt")
 
-	if _, err := os.Stat(emailPath); err == nil {
-		log.Printf("Error: password for %s already exists", emailPath)
+	if err := GenerateGPGKey(name, email, password); err != nil {
+		return fmt.Errorf("error generating GPG key: %v", err)
+	}
+
+	if err := os.WriteFile(emailPath, []byte(email), 0o600); err != nil {
+		return fmt.Errorf("error storing email: %v", err)
+	}
+
+	return nil
+}
+
+func register() {
+	if path, ok := RegisteredEmailPath(); ok {
+		fmt.Printf("Error: You already registered with %s\n", path)
 		return
 	}
 
@@ -62,14 +90,10 @@ func register() {
 		log.Println()
 	}
 
-	if err := GenerateGPGKey(name, email, password); err != nil {
-		log.Println("Error generating GPG key:", err)
+	if err := Register(name, email, password); err != nil {
+		log.Println(err)
 		return
 	}
 
-	if err := os.WriteFile(emailPath, []byte(email), 0o600); err != nil {
-		log.Println("Error storing email:", err)
-		return
-	}
 	log.Println("Registration complete")
 }
