@@ -54,7 +54,7 @@ var (
 
 var Commands = []string{"/add", "/addotp", "/delete", "/change", "/gen", "/export", "/importotp"}
 
-var importProviders = []string{"Google Authenticator Export"}
+var importProviders = []string{"Google Authenticator Export QR Code"}
 
 var addOTPMethods = []string{"Add by QR code", "Add secret key"}
 
