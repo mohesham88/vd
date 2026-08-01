@@ -52,11 +52,24 @@ var (
 	addFocus     int
 )
 
-var Commands = []string{"/add", "/addotp", "/delete", "/change", "/gen", "/export", "/importotp"}
+type Command struct {
+	Name        string
+	Description string
+}
+
+var Commands = []Command{
+	{"/add", "Add a new password"},
+	{"/addotp", "Add a new OTP"},
+	{"/delete", "Delete a password"},
+	{"/change", "Change a password"},
+	{"/gen", "Generate a random password"},
+	{"/export", "Export passwords to a file"},
+	{"/importotp", "Import OTPs batch from another authenticator"},
+}
 
 var importProviders = []string{"Google Authenticator Export QR Code"}
 
-var addOTPMethods = []string{"Add by QR code", "Add secret key"}
+var addOTPMethods = []string{"QR code", "Secret key"}
 
 var (
 	passphraseMsg string
@@ -547,7 +560,9 @@ func renderRows(g *gocui.Gui) error {
 	isCommands := isCommandsQuery()
 
 	if isCommands {
-		entries = filterCommands()
+		for _, c := range filterCommands() {
+			entries = append(entries, commandLabel(c))
+		}
 	} else {
 		entries = filterPasswords()
 	}
@@ -640,12 +655,21 @@ func entryLabel(name string) string {
 	return name
 }
 
-func filterCommands() []string {
-	matches := fuzzy.Find(query, Commands)
-	entries := make([]string, len(matches))
+func commandLabel(c Command) string {
+	return fmt.Sprintf("%-12s %s", c.Name, c.Description)
+}
+
+func filterCommands() []Command {
+	names := make([]string, len(Commands))
+	for i, c := range Commands {
+		names[i] = c.Name
+	}
+
+	matches := fuzzy.Find(query, names)
+	entries := make([]Command, len(matches))
 
 	for i, m := range matches {
-		entries[i] = m.Str
+		entries[i] = Commands[m.Index]
 	}
 
 	return entries
@@ -724,7 +748,7 @@ func handleCommand(g *gocui.Gui) error {
 		return nil
 	}
 
-	commandName := commands[selectedRow]
+	commandName := commands[selectedRow].Name
 
 	switch commandName {
 	case "/gen":
@@ -945,7 +969,7 @@ func selectImportProvider(g *gocui.Gui) error {
 }
 
 func selectAddOTPMethod(g *gocui.Gui) error {
-	if menuItems[selectedRow] == "Add by QR code" {
+	if menuItems[selectedRow] == "QR code" {
 		openQRPaste("addotp")
 		return nil
 	}
@@ -959,7 +983,7 @@ func selectAddOTPMethod(g *gocui.Gui) error {
 }
 
 func pasteImportImage(g *gocui.Gui, v *gocui.View) error {
-	path, err := app.ClipboardImage()
+	path, err := app.GetImageFromClipboard()
 	if err != nil {
 		showFeedback(g, err.Error())
 		return nil

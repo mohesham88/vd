@@ -36,7 +36,7 @@ func CopyToClipboard(text string) error {
 	return cmd.Run()
 }
 
-func ClipboardImage() (string, error) {
+func GetImageFromClipboard() (string, error) {
 	f, err := os.CreateTemp("", "vd-qr-*.png")
 	if err != nil {
 		return "", err
