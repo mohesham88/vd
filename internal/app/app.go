@@ -65,7 +65,7 @@ func Run() int {
 			fmt.Println("Usage: vd get password_name")
 			return 1
 		}
-		if err := GetPassword(os.Args[2]); err != nil {
+		if err := CopyPasswordToClipboard(os.Args[2]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
@@ -151,7 +151,7 @@ func Run() int {
 				return 1
 			}
 
-			if err := GetPassword(os.Args[3]); err != nil {
+			if err := CopyPasswordToClipboard(os.Args[3]); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				return 1
 			}
