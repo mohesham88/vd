@@ -110,7 +110,7 @@ func LoadCredentials(credentialsName string) (Credentials, error) {
 	return creds, nil
 }
 
-func PasswordValue(credentialsName string) (string, error) {
+func GetPassword(credentialsName string) (string, error) {
 	creds, err := LoadCredentials(credentialsName)
 	if err != nil {
 		return "", err
@@ -128,8 +128,8 @@ func PasswordValue(credentialsName string) (string, error) {
 	return creds.Password, nil
 }
 
-func GetPassword(credentialsName string) error {
-	value, err := PasswordValue(credentialsName)
+func CopyPasswordToClipboard(credentialsName string) error {
+	value, err := GetPassword(credentialsName)
 	if err != nil {
 		return err
 	}

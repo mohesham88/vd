@@ -740,7 +740,7 @@ func handleGetPassword(g *gocui.Gui) error {
 	}
 
 	if app.LoadSettings().ShowPassword {
-		value, err := app.PasswordValue(passwordName)
+		value, err := app.GetPassword(passwordName)
 		if err != nil {
 			showFeedback(g, fmt.Sprintf("Error: %v", err))
 			return nil
@@ -750,7 +750,7 @@ func handleGetPassword(g *gocui.Gui) error {
 		return nil
 	}
 
-	if err := app.GetPassword(passwordName); err != nil {
+	if err := app.CopyPasswordToClipboard(passwordName); err != nil {
 		showFeedback(g, fmt.Sprintf("Error: %v", err))
 		return nil
 	}
