@@ -149,6 +149,8 @@ func Decrypt(ciphertext []byte) ([]byte, error) {
 }
 
 func RunGPGDecrypt(ciphertext, passphrase []byte, stderr io.Writer) (*bytes.Buffer, error) {
+	// NOTE: GPG Decryption is symmetric, which means the ciphertext carries the key ID it was encrypted to. So we don't need to check for --recipient like the encryption.
+
 	cmd := exec.Command("gpg", "--quiet", "--batch", "--decrypt")
 	cmd.Stdin = bytes.NewReader(ciphertext)
 	cmd.Stderr = stderr
