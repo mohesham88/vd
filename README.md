@@ -54,3 +54,4 @@ Commands:
 - `vd` creates its own `gpg` key by default when you first register by `$ vd register` or through the TUI by `/register`. But if you want to use your already existing gpg key for encryption, you can just type the email that's registered for your key in `~/.local/share/vd/gpg_email.txt`.
 - **NOTE:** Once the credential is encrypted with a specifc GPG key, it will be decrypted **only** with the same key, even if you changed `~/.local/share/vd/gpg_email.txt`. That's how GPG works.
 - `~/.local/share/vd/gpg_email.txt` only affects encryption, that's why we encourage you not to change the first-created gpg key to keep all credentials decryptable with the same key.
+- `vd` stores the encrypted passwords in `~/.local/share/vd/passwords/` so be careful and don't delete this directory because vd doesn't have backups by default yet.
