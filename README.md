@@ -14,7 +14,7 @@
 - Export credentials to csv.
 
 ## Installation
-For Linux, MacOS you can download a binary release here.
+For Linux and MacOS, you can download a binary from the [here](https://github.com/ahmedhosssam/vd/releases/latest).
 
 ## Build from source:
 
