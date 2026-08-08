@@ -6,7 +6,12 @@
 ![VD](./assets/2.png)
 
 ## Features
-- 
+- Encrypting the credentials using [GPG](https://www.gnupg.org/).
+- 2FA/OTP Authentication, you can finally get your OTP codes from your computer without reaching your phone.
+- Import your existing OTP secrets from Google Authenticator.
+- Scriptability with cli arguments (see [Usage](#usage)).
+- Built-in random password generator.
+- Export credentials to csv.
 
 ## Installation
 For Linux, MacOS you can download a binary release here.
