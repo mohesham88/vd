@@ -14,7 +14,7 @@
 - Export credentials to csv.
 
 ## Installation
-For Linux and MacOS, you can download a binary from the [here](https://github.com/ahmedhosssam/vd/releases/latest).
+For Linux and MacOS, you can download a binary from [here](https://github.com/ahmedhosssam/vd/releases/latest).
 
 ## Build from source:
 
@@ -22,7 +22,7 @@ For Linux and MacOS, you can download a binary from the [here](https://github.co
 git clone https://github.com/ahmedhosssam/vd.git
 cd vd
 go mod tidy
-go build main.go
+go build cmd/vd/main.go
 mkdir -p ~/.local/bin && mv main ~/.local/bin/vd
 ```
 
@@ -52,5 +52,5 @@ Commands:
 
 - `vd` relies on `gpg` keys for encryption, so we don't implement any encryption algorithms ourselves, we use GPG for encrypting/decrypting the credentials on the disk.
 - `vd` creates its own `gpg` key by default when you first register by `$ vd register` or through the TUI by `/register`. But if you want to use your already existing gpg key for encryption, you can just type the email that's registered for your key in `~/.local/share/vd/gpg_email.txt`.
-- **NOTE:** Once the credentials is encrypted with a specifc GPG key, it will be decrypted **only** with the same key, even if you changed `~/.local/share/vd/gpg_email.txt`. That's how GPG works.
+- **NOTE:** Once the credential is encrypted with a specifc GPG key, it will be decrypted **only** with the same key, even if you changed `~/.local/share/vd/gpg_email.txt`. That's how GPG works.
 - `~/.local/share/vd/gpg_email.txt` only affects encryption, that's why we encourage you not to change the first-created gpg key to keep all credentials decryptable with the same key.
