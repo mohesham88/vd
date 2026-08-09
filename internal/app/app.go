@@ -120,9 +120,11 @@ func Run() int {
 				return 1
 			}
 
-			var name string
-			fmt.Print("Enter OTP name: ")
-			fmt.Scanln(&name)
+			name, err := ScanLine("Enter OTP name: ")
+			if err != nil {
+				fmt.Println("Error reading OTP name:", err)
+				return 1
+			}
 
 			secret, err := ReadSecret("Enter OTP secret key: ")
 			if err != nil {

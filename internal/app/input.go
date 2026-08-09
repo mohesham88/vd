@@ -1,14 +1,26 @@
 package app
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"bufio"
+
 	"golang.org/x/term"
 )
+
+var stdin = bufio.NewReader(os.Stdin)
+
+func ScanLine(prompt string) (string, error) {
+	fmt.Print(prompt)
+	line, err := stdin.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
+}
 
 func ReadSecret(prompt string) (string, error) {
 	fmt.Print(prompt)
@@ -81,14 +93,11 @@ func ReadCredential() *Credentials {
 		return nil
 	}
 
-	fmt.Print("Enter name: ")
-	reader := bufio.NewReader(os.Stdin)
-	name, err := reader.ReadString('\n')
+	name, err := ScanLine("Enter name: ")
 	if err != nil {
-			fmt.Println("Error reading name:", err)
-			return nil
+		fmt.Println("Error reading name:", err)
+		return nil
 	}
-	name = strings.TrimSpace(name)
 
 	filename := filepath.Join(passwordsDir, name)
 	if _, err := os.Stat(filename); err == nil {

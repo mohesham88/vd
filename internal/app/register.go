@@ -58,12 +58,18 @@ func register() {
 		return
 	}
 
-	var name, email, password string
+	var password string
 
-	fmt.Print("Enter name: ")
-	fmt.Scanln(&name)
-	fmt.Print("Enter email: ")
-	fmt.Scanln(&email)
+	name, err := ScanLine("Enter name: ")
+	if err != nil {
+		fmt.Println("Error reading name:", err)
+		return
+	}
+	email, err := ScanLine("Enter email: ")
+	if err != nil {
+		fmt.Println("Error reading email:", err)
+		return
+	}
 	for {
 		fmt.Print("Enter master password: ")
 		pwBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
