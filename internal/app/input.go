@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
+	"bufio"
 	"golang.org/x/term"
 )
 
@@ -81,10 +81,14 @@ func ReadCredential() *Credentials {
 		return nil
 	}
 
-	var name string
-
 	fmt.Print("Enter name: ")
-	fmt.Scanln(&name)
+	reader := bufio.NewReader(os.Stdin)
+	name, err := reader.ReadString('\n')
+	if err != nil {
+			fmt.Println("Error reading name:", err)
+			return nil
+	}
+	name = strings.TrimSpace(name)
 
 	filename := filepath.Join(passwordsDir, name)
 	if _, err := os.Stat(filename); err == nil {
