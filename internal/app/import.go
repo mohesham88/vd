@@ -4,9 +4,17 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"net/url"
+	"os"
 	"strings"
+
+	goqr "github.com/piglig/go-qr"
 )
+
 
 type otpAccount struct {
 	Issuer  string
@@ -139,16 +147,23 @@ func decodeMigrationPayload(migrationURL string) ([]otpAccount, error) {
 }
 
 func readQR(imagePath string) (string, error) {
-	out, err := exec.Command("zbarimg", "--raw", "-q", imagePath).Output()
+	file, err := os.Open(imagePath)
 	if err != nil {
-		if _, ok := err.(*exec.Error); ok {
-			return "", fmt.Errorf("error: zbarimg not found, install it first please")
-		}
-		return "", fmt.Errorf("error: no QR code found in %s", imagePath)
+		return "", fmt.Errorf("error: could not open image file %s: %w", imagePath, err)
 	}
-	return strings.TrimSpace(string(out)), nil
-}
 
+	defer file.Close()
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return "", fmt.Errorf("error: could not decode image file %s: %w", imagePath, err)
+	}
+
+	payload, err := goqr.Decode(img)
+	if err != nil {
+		return "", fmt.Errorf("no QR code found in %s", imagePath)
+	}
+	return strings.TrimSpace(payload), nil
+}
 func ImportOTPQR(imagePath string) (string, error) {
 	raw, err := readQR(imagePath)
 	if err != nil {
