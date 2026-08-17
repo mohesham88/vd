@@ -8,6 +8,8 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -147,7 +149,7 @@ func decodeMigrationPayload(migrationURL string) ([]otpAccount, error) {
 }
 
 func readQR(imagePath string) (string, error) {
-	file, err := os.Open(imagePath)
+	file, err := openImage(imagePath)
 	if err != nil {
 		return "", fmt.Errorf("error: could not open image file %s: %w", imagePath, err)
 	}
@@ -164,6 +166,36 @@ func readQR(imagePath string) (string, error) {
 	}
 	return strings.TrimSpace(payload), nil
 }
+
+
+func openImage(source string) (io.ReadCloser, error) {
+	u, err := url.Parse(source)
+	if err != nil {
+		return nil, err
+	}
+
+	switch u.Scheme {
+	case "http", "https":
+		resp, err := http.Get(source)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("HTTP %s", resp.Status)
+		}
+
+		return resp.Body, nil
+
+	case "file":
+		return os.Open(u.Path)
+
+	default:
+		return os.Open(source)
+	}
+}
+
 func ImportOTPQR(imagePath string) (string, error) {
 	raw, err := readQR(imagePath)
 	if err != nil {
