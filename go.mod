@@ -4,6 +4,7 @@ go 1.25.1
 
 require (
 	github.com/awesome-gocui/gocui v1.1.0
+	github.com/piglig/go-qr v1.1.0
 	github.com/sahilm/fuzzy v0.1.3
 	golang.org/x/term v0.45.0
 )
