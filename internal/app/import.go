@@ -17,7 +17,6 @@ import (
 	goqr "github.com/piglig/go-qr"
 )
 
-
 type otpAccount struct {
 	Issuer  string
 	Account string
@@ -166,7 +165,6 @@ func readQR(imagePath string) (string, error) {
 	}
 	return strings.TrimSpace(payload), nil
 }
-
 
 func openImage(source string) (io.ReadCloser, error) {
 	u, err := url.Parse(source)
